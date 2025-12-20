@@ -11,103 +11,60 @@ function BOOT()
 end
 
 
+
+
+
 function TIC()
 
-		local card = UI.Control.selectCard(Cards.Room)
+
+	local card = UI.Control.selectCard(Cards.Room)
+	
+	if card then
+		local suit = card.suit
 		
-		if card then
-			local suit = card.suit
+		if suit == "Diamonds" then
+			Player.equipWeapon(card)
 			
-			if suit == "Diamonds" then
-				
-				if Player.lastSlainMonster then
-					Player.lastSlainMonster = nil
-				end
-				
-				Player.weapon = card
-				
-			elseif suit == "Hearts" then
-				local restored_health = card.rank
-				Player.health = Player.health + restored_health
-				
-				if Player.health > 20 then
-					Player.health = 20
-				end
+		elseif suit == "Hearts" then
+			Player.restoreHealth(card)
 
-			elseif suit == "Spades" or suit == "Clubs" then
-		
-				local monster_damage = card.rank
-				local weapon_rank = 15
-				local weapon_damage = 0
-				local total_damage = 0
-				
-				-- set weapon rank if lastSlainMonster
-				if Player.lastSlainMonster then
-					weapon_rank = Player.lastSlainMonster.rank
-				end
-				
-				-- check if player has a weapon
-				if Player.weapon then
-					weapon_damage = Player.weapon.rank
-					
-					-- then check if the weapon can be used
-					if weapon_rank >= monster_damage then
-						total_damage = monster_damage - weapon_damage
-						
-						-- check if damage is negative
-						if total_damage <= 0 then
-							total_damage = 0
-						end
-						
-					elseif weapon_rank < monster_damage then
-						table.insert(Cards.Room, 1, card)
-						return
-					end
-					
-				elseif not Player.weapon then
-					total_damage = monster_damage
-				end
-				
-				-- subtract total damage from player HP
-				Player.health = Player.health - total_damage
-				
-				-- check if health is negative
-				if Player.health <= 0 then
-					Player.health = 0
-				end
-				
-				Player.lastSlainMonster = card
-				
-			end
+		elseif suit == "Spades" or suit == "Clubs" then
+			Player.engageEnemy(card)
+			
 		end
+	end
 
-	-- DRAW
+
+	-- draw functions
 	
 	cls(0)
 	
-	print(Player.health, 128, 10, Draw.COLOR.RED)
+	print(Player.health, 128, 10, GFX.PALETTE.RED)
+	print(GameState.canFlee, 128, 20, GFX.PALETTE.WHITE)
 	
 	for i, card in ipairs(Cards.Room) do
 		print(card.ID .. " " 
 			.. card.rank_name .. " " 
 			.. card.suit,
-			0, i*10, Draw.COLOR.WHITE)
+			0, i*10, GFX.PALETTE.WHITE)
 	end
 	
 	if Player.weapon then
 		print(Player.weapon.ID .. " "
 			.. Player.weapon.rank_name .. " "
 			.. Player.weapon.suit, 
-			0, 60, Draw.COLOR.YELLOW)
+			0, 60, GFX.PALETTE.YELLOW)
 	end
 	
 	if Player.lastSlainMonster then
 		print(Player.lastSlainMonster.ID .. " "
 			.. Player.lastSlainMonster.rank_name .. " "
-			.. Player.lastSlainMonster.suit, 128, 60, Draw.COLOR.ORANGE)
+			.. Player.lastSlainMonster.suit, 128, 60, GFX.PALETTE.ORANGE)
 	end
 
 end
+
+
 
 
 
@@ -123,11 +80,13 @@ UI = { }
 		KB_1 = 28,
 		KB_2 = 29,
 		KB_3 = 30,
-		KB_4 = 31
+		KB_4 = 31,
+		KB_5 = 32
 		
-		}
+	}
 		
 	
+
 	-- CONTROLS
 	
 	UI.Control = { }
@@ -145,20 +104,20 @@ UI = { }
 		end
 		
 		if selected_card then
+			GameState.canFlee = false
 			return selected_card
 		end
 	end
-	
-	
-	
 
--- DRAW
 
-Draw = { }
+
+-- GFX
+
+GFX = { }
 
 	-- CONSTANTS
 	
-	Draw.COLOR = {
+	GFX.PALETTE = {
 		PURPLE = 1,
 		RED = 2,
 		ORANGE = 3,
@@ -179,16 +138,105 @@ Draw = { }
 	
 
 
+
+
+
+
 -- PLAYER
 
 Player = { 
-	
-	health = 15,
+
+	health = 20,
 	
 	weapon = nil,
 	lastSlainMonster = nil
 	
 }
+
+-- function to equip weapon cards
+function Player.equipWeapon(card)
+	local p = Player
+
+	-- reset last slain monster when equipping a new weapon
+	if p.lastSlainMonster then
+		p.lastSlainMonster = nil
+	end
+
+	p.weapon = card
+end
+
+
+
+-- function to restore health
+function Player.restoreHealth(card)
+	local p = Player
+	local restored_health = card.rank
+	
+	-- restore health then check for overheal
+	p.health = p.health + restored_health
+
+	if p.health > 20 then
+		p.health = 20
+	end
+end
+
+
+
+-- function to engage combat
+function Player.engageEnemy(card)
+	local p = Player
+
+	local monster_damage = card.rank
+	local weapon_rank = 15
+	local weapon_damage = 0
+	local total_damage = 0
+	local barehanded = true
+	
+	-- set weapon rank if lastSlainMonster
+	if p.lastSlainMonster then
+		weapon_rank = p.lastSlainMonster.rank
+	end
+	
+	-- check if player has a weapon
+	if p.weapon then
+		weapon_damage = p.weapon.rank
+		
+		-- then check if the weapon can be used
+		if weapon_rank >= monster_damage then
+			total_damage = monster_damage - weapon_damage
+			barehanded = false
+			
+			-- check if damage is negative
+			if total_damage <= 0 then
+				total_damage = 0
+			end
+			
+		elseif weapon_rank < monster_damage then
+			-- if weapon rank is less than monster level, take full damage
+			total_damage = monster_damage
+		end
+		
+	elseif not p.weapon then
+		-- fight barehanded and take full damage
+		total_damage = monster_damage
+	end
+	
+	-- subtract total damage from player HP
+	p.health = p.health - total_damage
+	
+	-- check if health is negative
+	if p.health <= 0 then
+		p.health = 0
+	end
+	
+	-- set lastSlainMonster if player is holding a weapon
+	if not barehanded then
+		p.lastSlainMonster = card
+	end
+end
+
+
+
 
 
 
@@ -197,12 +245,11 @@ Player = {
 
 Cards = { 
 
-	lastCardID = 0,
-	
 	Deck = { },
 	Room = { }
 
 }
+
 
 
 	-- CONSTANTS
@@ -236,32 +283,35 @@ Cards = {
 	
 	
 	
- -- DECK
- 
- function Cards.buildDeck()
- 	local c = Cards
-  local deck = c.Deck
- 	local suits = c.SUIT
-  local ranks = c.RANK
-  
-  local card = { }
-  
-  for i, suit in ipairs(suits) do
-  	for j, rank in ipairs(ranks) do
-    card = {
-    	ID = c.lastCardID,
-     suit = suits[i],
-     rank = ranks[j].value,
-     rank_name = ranks[j].name
-    }
-     
-    table.insert(deck, 1, card)
-    c.lastCardID = c.lastCardID + 1
-   end
-  end
+	-- DECK
+	
+	function Cards.buildDeck()
+		local c = Cards
+		local deck = c.Deck
+		local suits = c.SUIT
+		local ranks = c.RANK
+		
+		local card = { }
+		local last_card_id = 1
+		
+		for i, suit in ipairs(suits) do
+			for j, rank in ipairs(ranks) do
+				card = {
+					ID = last_card_id,
+					state = " ",
+
+					suit = suits[i],
+					rank = ranks[j].value,
+					rank_name = ranks[j].name
+					}
+					
+					table.insert(deck, 1, card)
+					last_card_id = last_card_id + 1
+			end
+		end
 	end
- 
- -- shuffle cards
+		
+	-- shuffle cards
 	function Cards.shuffle(cards)
 		for i = #cards, 2, -1 do
 			local j = math.random(i)
@@ -276,8 +326,40 @@ Cards = {
 		
 		table.insert(room, 1, card)
 	end
-	
-    	
+
+
+
+
+
+-- GAME
+
+GameState = { 
+
+	gameOver = false,
+
+	-- room checks
+	roomIsEmpty = false,
+	roomCleared = false,
+	canFlee = true
+
+}
+
+-- check if room is empty
+function GameState.checkRoomIsEmpty(room)
+	if #room == 0 then
+		return true
+	end
+end
+
+-- check if room has been cleared (1 card left)
+function GameState.checkRoomCleared(room)
+	if #room == 1 then
+		return true
+	end
+end
+
+
+
  
 -- <WAVES>
 -- 000:00000000ffffffff00000000ffffffff
