@@ -4,7 +4,7 @@ function BOOT()
 	
 	Cards.shuffle(Cards.Deck)
 	
-	for i=3, 0, -1 do
+	for i=1, Cards.MAX_ROOM_SIZE, 1 do
 		Cards.drawOne(Cards.Room)
 	end
 	
@@ -15,6 +15,21 @@ end
 
 
 function TIC()
+
+	GameState.roomCleared = GameState.checkRoomCleared(Cards.Room)
+	GameState.roomFled = UI.Control.fleeRoom(Cards.Room)
+
+	if GameState.roomCleared then
+
+		--reset roomFled flag
+		GameState.roomFled = false
+			
+		for i=1, Cards.MAX_ROOM_SIZE - #Cards.Room, 1 do
+			Cards.drawOne(Cards.Room)
+		end
+
+		GameState.currentRoom = GameState.currentRoom + 1
+	end
 
 
 	local card = UI.Control.selectCard(Cards.Room)
@@ -39,27 +54,33 @@ function TIC()
 	
 	cls(0)
 	
-	print(Player.health, 128, 10, GFX.PALETTE.RED)
-	print(GameState.canFlee, 128, 20, GFX.PALETTE.WHITE)
+	print("Health " .. Player.health, 180, 10, GFX.PALETTE.RED, true)
+	print("Room " .. GameState.currentRoom, 180, 30, GFX.PALETTE.WHITE, true)
+
+	if GameState.roomFled then
+		print("Cannot run", 180, 40, GFX.PALETTE.RED, true)
+	elseif not GameState.roomFled then
+		print("Can run", 180, 40, GFX.PALETTE.GREEN, true)
+	end
 	
 	for i, card in ipairs(Cards.Room) do
-		print(card.ID .. " " 
-			.. card.rank_name .. " " 
+		print("#" .. card.ID .. " - " 
+			.. card.rank_name .. " of " 
 			.. card.suit,
-			0, i*10, GFX.PALETTE.WHITE)
+			0, i*10, GFX.PALETTE.WHITE, true)
 	end
 	
 	if Player.weapon then
-		print(Player.weapon.ID .. " "
-			.. Player.weapon.rank_name .. " "
+		print("#" .. Player.weapon.ID .. " - "
+			.. Player.weapon.rank_name .. " of "
 			.. Player.weapon.suit, 
-			0, 60, GFX.PALETTE.YELLOW)
+			0, 60, GFX.PALETTE.YELLOW, true)
 	end
 	
 	if Player.lastSlainMonster then
-		print(Player.lastSlainMonster.ID .. " "
-			.. Player.lastSlainMonster.rank_name .. " "
-			.. Player.lastSlainMonster.suit, 128, 60, GFX.PALETTE.ORANGE)
+		print("#" .. Player.lastSlainMonster.ID .. " - "
+			.. Player.lastSlainMonster.rank_name .. " of "
+			.. Player.lastSlainMonster.suit, 0, 70, GFX.PALETTE.ORANGE, true)
 	end
 
 end
@@ -104,8 +125,32 @@ UI = { }
 		end
 		
 		if selected_card then
-			GameState.canFlee = false
 			return selected_card
+		end
+	end
+
+	function UI.Control.fleeRoom(room)
+		if not GameState.roomFled then
+			if keyp(UI.INPUT.KB_5) then
+
+				-- remove cards from the room and put them on the bottom of the deck
+				for i=1, #room, 1 do
+					local card = table.remove(room, 1)
+					table.insert(Cards.Deck, card)
+				end
+
+				-- draw new cards
+				for i=1, Cards.MAX_ROOM_SIZE - #Cards.Room, 1 do
+					Cards.drawOne(Cards.Room)
+				end
+
+				GameState.currentRoom = GameState.currentRoom + 1
+				return true
+			else
+				return false
+			end
+		elseif GameState.roomFled then
+			return true
 		end
 	end
 
@@ -186,15 +231,15 @@ end
 function Player.engageEnemy(card)
 	local p = Player
 
-	local monster_damage = card.rank
-	local weapon_rank = 15
+	local monster_level = card.rank
+	local weapon_level = 15
 	local weapon_damage = 0
 	local total_damage = 0
 	local barehanded = true
 	
 	-- set weapon rank if lastSlainMonster
 	if p.lastSlainMonster then
-		weapon_rank = p.lastSlainMonster.rank
+		weapon_level = p.lastSlainMonster.rank
 	end
 	
 	-- check if player has a weapon
@@ -202,8 +247,8 @@ function Player.engageEnemy(card)
 		weapon_damage = p.weapon.rank
 		
 		-- then check if the weapon can be used
-		if weapon_rank >= monster_damage then
-			total_damage = monster_damage - weapon_damage
+		if weapon_level >= monster_level then
+			total_damage = monster_level - weapon_damage
 			barehanded = false
 			
 			-- check if damage is negative
@@ -211,14 +256,14 @@ function Player.engageEnemy(card)
 				total_damage = 0
 			end
 			
-		elseif weapon_rank < monster_damage then
+		elseif weapon_level < monster_level then
 			-- if weapon rank is less than monster level, take full damage
-			total_damage = monster_damage
+			total_damage = monster_level
 		end
 		
 	elseif not p.weapon then
 		-- fight barehanded and take full damage
-		total_damage = monster_damage
+		total_damage = monster_level
 	end
 	
 	-- subtract total damage from player HP
@@ -253,6 +298,8 @@ Cards = {
 
 
 	-- CONSTANTS
+
+	Cards.MAX_ROOM_SIZE = 4
 	
 	Cards.SUIT = {
 		
@@ -292,10 +339,14 @@ Cards = {
 		local ranks = c.RANK
 		
 		local card = { }
-		local last_card_id = 1
+		local last_card_id = 100
 		
 		for i, suit in ipairs(suits) do
+			last_card_id = i*100
+
 			for j, rank in ipairs(ranks) do
+				last_card_id = last_card_id + 1
+
 				card = {
 					ID = last_card_id,
 					state = " ",
@@ -303,10 +354,9 @@ Cards = {
 					suit = suits[i],
 					rank = ranks[j].value,
 					rank_name = ranks[j].name
-					}
+				}
 					
-					table.insert(deck, 1, card)
-					last_card_id = last_card_id + 1
+				table.insert(deck, 1, card)
 			end
 		end
 	end
@@ -337,24 +387,18 @@ GameState = {
 
 	gameOver = false,
 
-	-- room checks
-	roomIsEmpty = false,
 	roomCleared = false,
-	canFlee = true
+	roomFled = false,
+	currentRoom = 1
 
 }
 
--- check if room is empty
-function GameState.checkRoomIsEmpty(room)
-	if #room == 0 then
-		return true
-	end
-end
-
 -- check if room has been cleared (1 card left)
 function GameState.checkRoomCleared(room)
-	if #room == 1 then
+	if #room <= 1 then
 		return true
+	else
+		return false
 	end
 end
 
