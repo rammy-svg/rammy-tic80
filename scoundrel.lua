@@ -1,5 +1,7 @@
 function BOOT()
 
+	GameState.debugMode = true
+
 	Cards.buildDeck()
 	
 	Cards.shuffle(Cards.Deck)
@@ -18,6 +20,17 @@ function TIC()
 
 	GameState.roomCleared = GameState.checkRoomCleared(Cards.Room)
 	GameState.roomFled = UI.Control.fleeRoom(Cards.Room)
+	GameState.gameOver = GameState.checkGameOver()
+
+	-- can't run if player has already taken a card
+	if #Cards.Room <= 3 then
+		GameState.roomFled = true
+	end
+
+	if GameState.gameOver then
+		print("GAME OVER", 95, 128, GFX.PALETTE.RED, true)
+		return
+	end
 
 	if GameState.roomCleared then
 
@@ -30,6 +43,8 @@ function TIC()
 
 		GameState.currentRoom = GameState.currentRoom + 1
 	end
+
+
 
 
 	local card = UI.Control.selectCard(Cards.Room)
@@ -50,38 +65,46 @@ function TIC()
 	end
 
 
+
+	
 	-- draw functions
 	
 	cls(0)
-	
-	print("Health " .. Player.health, 180, 10, GFX.PALETTE.RED, true)
-	print("Room " .. GameState.currentRoom, 180, 30, GFX.PALETTE.WHITE, true)
 
-	if GameState.roomFled then
-		print("Cannot run", 180, 40, GFX.PALETTE.RED, true)
-	elseif not GameState.roomFled then
-		print("Can run", 180, 40, GFX.PALETTE.GREEN, true)
-	end
+
+	if GameState.debugMode then
 	
-	for i, card in ipairs(Cards.Room) do
-		print("#" .. card.ID .. " - " 
-			.. card.rank_name .. " of " 
-			.. card.suit,
-			0, i*10, GFX.PALETTE.WHITE, true)
+		print("Health " .. Player.health, 180, 10, GFX.PALETTE.RED, true)
+		print("Room " .. GameState.currentRoom, 180, 30, GFX.PALETTE.WHITE, true)
+
+		if GameState.roomFled then
+			print("Cannot run", 180, 40, GFX.PALETTE.RED, true)
+		elseif not GameState.roomFled then
+			print("Can run", 180, 40, GFX.PALETTE.GREEN, true)
+		end
+		
+		for i, card in ipairs(Cards.Room) do
+			print("#" .. card.ID .. "  " 
+				.. card.rank_name .. " of " 
+				.. card.suit,
+				0, i*10, GFX.PALETTE.WHITE, true)
+		end
+		
+		if Player.weapon then
+			print("#" .. Player.weapon.ID .. "  "
+				.. Player.weapon.rank_name .. " of "
+				.. Player.weapon.suit, 
+				0, 60, GFX.PALETTE.YELLOW, true)
+		end
+		
+		if Player.lastSlainMonster then
+			print("#" .. Player.lastSlainMonster.ID .. "  "
+				.. Player.lastSlainMonster.rank_name .. " of "
+				.. Player.lastSlainMonster.suit, 0, 70, GFX.PALETTE.ORANGE, true)
+		end
+
 	end
-	
-	if Player.weapon then
-		print("#" .. Player.weapon.ID .. " - "
-			.. Player.weapon.rank_name .. " of "
-			.. Player.weapon.suit, 
-			0, 60, GFX.PALETTE.YELLOW, true)
-	end
-	
-	if Player.lastSlainMonster then
-		print("#" .. Player.lastSlainMonster.ID .. " - "
-			.. Player.lastSlainMonster.rank_name .. " of "
-			.. Player.lastSlainMonster.suit, 0, 70, GFX.PALETTE.ORANGE, true)
-	end
+
 
 end
 
@@ -385,6 +408,8 @@ Cards = {
 
 GameState = { 
 
+	debugMode = true,
+
 	gameOver = false,
 
 	roomCleared = false,
@@ -402,6 +427,14 @@ function GameState.checkRoomCleared(room)
 	end
 end
 
+-- check for game over
+function GameState.checkGameOver()
+	if Player.health <= 0 then
+		return true
+	else
+		return false
+	end
+end
 
 
  
