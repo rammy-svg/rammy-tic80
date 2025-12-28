@@ -2,32 +2,44 @@ Objects = {
 
     Body = { },
     last_object_ID = 0,
-    max_object_count = 50
+
+    -- CONSTANTS --
+
+    MAX_OBJECT_COUNT = 50,
+    MAX_OBJECT_SIZE = 1000
 
 }
 
 
-function Objects.createBody(x, y, mass)
+function Objects.createBody(x, y, mass, type)
     local object = {
         ID = Objects.last_object_ID,
         x = x,
         y = y,
         mass = mass,
-        accel = 0
+        direction = 0,
+        speed = 0,
+        type = type or "default"
+
     }
 
     Objects.last_object_ID = Objects.last_object_ID + 1
     return object
 end
 
-function Objects.addBody(x, y, mass)
-    local body = Objects.createBody(x, y, mass)
+function Objects.addBody(x, y, mass, type)
+    local body = Objects.createBody(x, y, mass, type)
     table.insert(Objects.Body, body)
 end
 
 function Objects.getBodyAtPosition(x, y)
     for _, body in pairs(Objects.Body) do
-        if body.x == x and body.y == y then
+        local min_x = body.x - (body.mass * GFX.OBJECT_SCALE_FACTOR)
+        local max_x = body.x + (body.mass * GFX.OBJECT_SCALE_FACTOR)
+        local min_y = body.y - (body.mass * GFX.OBJECT_SCALE_FACTOR)
+        local max_y = body.y + (body.mass * GFX.OBJECT_SCALE_FACTOR)
+
+        if x >= min_x and x <= max_x and y >= min_y and y <= max_y then
             return body.ID
         end
     end
@@ -50,7 +62,7 @@ function Objects.destroyBodyAtPosition(x, y)
     end
 end
 
-function Objects.combineBodies(body1, body2)
+function Objects.combineMass(body1, body2)
     local combinedMass = body1.mass + body2.mass
     local combinedX = (body1.x * body1.mass + body2.x * body2.mass) / combinedMass
     local combinedY = (body1.y * body1.mass + body2.y * body2.mass) / combinedMass
@@ -63,10 +75,41 @@ function Objects.combineBodies(body1, body2)
     table.insert(Objects.Body, newBody)
 end
 
+function Objects.removeOutOfBounds()
+    for i = #Objects.Body, 1, -1 do
+        local body = Objects.Body[i]
+        if body.x < 0 or body.x > 240 or body.y < 0 or body.y > 136 then
+            table.remove(Objects.Body, i)
+        end
+    end
+end
+
+function Objects.removeLargeBodies()
+    for i = #Objects.Body, 1, -1 do
+        local body = Objects.Body[i]
+        if body.mass > Objects.MAX_OBJECT_SIZE then
+            table.remove(Objects.Body, i)
+        end
+    end
+end
+
+function Objects.checkMaxObjects()
+    while #Objects.Body > Objects.MAX_OBJECT_COUNT do
+        table.remove(Objects.Body, 1)
+    end
+end
+
+function Objects.cleanup()
+    Objects.removeOutOfBounds()
+    Objects.removeLargeBodies()
+    Objects.checkMaxObjects()
+end
+
+
 
 Physics = {
 
-    G = 6.67430e-2
+    G = 6.67430e-5
 
  }
 
@@ -89,13 +132,14 @@ function Physics.calculateGravitationalForce(body1, body2)
     return forceX, forceY
 end
 
+
 function Physics.updateBodies()
-    for i, body1 in pairs(Objects.Body) do
+    for _, body1 in pairs(Objects.Body) do
         local totalForceX = 0
         local totalForceY = 0
 
-        for j, body2 in pairs(Objects.Body) do
-            if i ~= j then
+        for _, body2 in pairs(Objects.Body) do
+            if body1.ID ~= body2.ID then
                 local forceX, forceY = Physics.calculateGravitationalForce(body1, body2)
                 totalForceX = totalForceX + forceX
                 totalForceY = totalForceY + forceY
@@ -105,38 +149,11 @@ function Physics.updateBodies()
         local accelX = totalForceX / body1.mass
         local accelY = totalForceY / body1.mass
 
-        body1.x = body1.x + accelX
-        body1.y = body1.y + accelY
-    end
+        body1.speed = body1.speed + math.sqrt(accelX * accelX + accelY * accelY)
+        body1.direction = math.atan2(totalForceY, totalForceX)
 
-    Physics.resolveCollisions()
-    Physics.removeOutOfBounds()
-    Physics.removeLargeBodies()
-    Physics.checkMaxObjects()
-
-end
-
-function Physics.removeLargeBodies()
-    for i = #Objects.Body, 1, -1 do
-        local body = Objects.Body[i]
-        if body.mass > 100 then
-            table.remove(Objects.Body, i)
-        end
-    end
-end
-
-function Physics.removeOutOfBounds()
-    for i = #Objects.Body, 1, -1 do
-        local body = Objects.Body[i]
-        if body.x < 0 or body.x > 240 or body.y < 0 or body.y > 136 then
-            table.remove(Objects.Body, i)
-        end
-    end
-end
-
-function Physics.checkMaxObjects()
-    while #Objects.Body > Objects.max_object_count do
-        table.remove(Objects.Body, 1)
+        body1.x = body1.x + body1.speed * math.cos(body1.direction)
+        body1.y = body1.y + body1.speed * math.sin(body1.direction)
     end
 end
 
@@ -159,13 +176,17 @@ function Physics.resolveCollisions()
     end
 
     for _, pair in pairs(bodiesToCombine) do
-        Objects.combineBodies(pair[1], pair[2])
+        Objects.combineMass(pair[1], pair[2])
     end
 
 end
 
 
 GFX = { 
+
+    -- CONSTANTS --
+
+    OBJECT_SCALE_FACTOR = 0.1,
 
     PALETTE = {
         WHITE = 12
@@ -175,10 +196,9 @@ GFX = {
 
 function GFX.drawAllBodies()
     for _, body in pairs(Objects.Body) do
-        circ(body.x, body.y, body.mass / 10, body.mass % 16)
+        circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR, body.mass % 16)
     end
 end
-
 
 
 UI = { 
@@ -198,11 +218,12 @@ end
 
 function TIC()
 
+    -- UI --
+
     UI.getMouse()
 
-
     if UI.mouse_left then
-        if not Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y) and #Objects.Body < Objects.max_object_count then
+        if not Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y) and #Objects.Body < Objects.MAX_OBJECT_COUNT then
             Objects.addBody(UI.mouse_x, UI.mouse_y, 5 + math.random(0, 10))
         end
     end
@@ -213,7 +234,14 @@ function TIC()
         end
     end
 
+    -- UPDATE --
+
     Physics.updateBodies()
+    Physics.resolveCollisions()
+    
+    Objects.cleanup()
+
+    -- DRAW --
 
     cls(0)
 
