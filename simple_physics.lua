@@ -11,15 +11,16 @@ Objects = {
 }
 
 
-function Objects.createBody(x, y, mass, type)
+function Objects.createBody(x, y, mass, vx, vy, type)
     local object = {
         ID = Objects.last_object_ID,
         x = x,
         y = y,
         mass = mass,
-        direction = 0,
-        speed = 0,
-        type = type or "default"
+        vx = vx or 0,
+        vy = vy or 0,
+        type = type or "default",
+        trail = { }
 
     }
 
@@ -75,6 +76,13 @@ function Objects.combineMass(body1, body2)
     table.insert(Objects.Body, newBody)
 end
 
+function Objects.updateTrail(body)
+    table.insert(body.trail, {x=body.x, y=body.y})
+    if #body.trail > GFX.MAX_TRAIL_LENGTH then
+        table.remove(body.trail, 1)
+    end
+end
+
 function Objects.removeOutOfBounds()
     for i = #Objects.Body, 1, -1 do
         local body = Objects.Body[i]
@@ -109,7 +117,9 @@ end
 
 Physics = {
 
-    G = 6.67430e-5
+    G = 6.67430e-8,
+
+    TIME_SCALE = 100
 
  }
 
@@ -134,27 +144,35 @@ end
 
 
 function Physics.updateBodies()
-    for _, body1 in pairs(Objects.Body) do
-        local totalForceX = 0
-        local totalForceY = 0
 
+    for _, body in pairs(Objects.Body) do
+        body.ax = 0
+        body.ay = 0
+    end
+
+    for _, body1 in pairs(Objects.Body) do
         for _, body2 in pairs(Objects.Body) do
             if body1.ID ~= body2.ID then
                 local forceX, forceY = Physics.calculateGravitationalForce(body1, body2)
-                totalForceX = totalForceX + forceX
-                totalForceY = totalForceY + forceY
+                body1.ax = body1.ax + forceX / body1.mass
+                body1.ay = body1.ay + forceY / body1.mass
             end
         end
-
-        local accelX = totalForceX / body1.mass
-        local accelY = totalForceY / body1.mass
-
-        body1.speed = body1.speed + math.sqrt(accelX * accelX + accelY * accelY)
-        body1.direction = math.atan2(totalForceY, totalForceX)
-
-        body1.x = body1.x + body1.speed * math.cos(body1.direction)
-        body1.y = body1.y + body1.speed * math.sin(body1.direction)
     end
+
+    -- Then, update velocity and position
+    for _, body in pairs(Objects.Body) do
+        body.vx = body.vx + (body.ax * Physics.TIME_SCALE)
+        body.vy = body.vy + (body.ay * Physics.TIME_SCALE)
+        body.x = body.x + (body.vx * Physics.TIME_SCALE)
+        body.y = body.y + (body.vy * Physics.TIME_SCALE)
+    end
+
+    -- finally update trails
+    for _, body in pairs(Objects.Body) do
+        Objects.updateTrail(body)
+    end
+    
 end
 
 function Physics.resolveCollisions()
@@ -188,15 +206,27 @@ GFX = {
 
     OBJECT_SCALE_FACTOR = 0.1,
 
+    MAX_TRAIL_LENGTH = 20,
+
     PALETTE = {
         WHITE = 12
     }
 
 }
 
+function GFX.drawTrail(body)
+    for i, point in ipairs(body.trail) do
+        -- Draw a fading circle or point
+        local alpha = i / #body.trail  -- from 0 to 1
+        local color = body.mass % 16  -- or use a color based on mass
+        circ(point.x, point.y, alpha, color)  -- adjust size as needed
+    end
+end
+
 function GFX.drawAllBodies()
     for _, body in pairs(Objects.Body) do
         circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR, body.mass % 16)
+        GFX.drawTrail(body)
     end
 end
 
@@ -237,7 +267,6 @@ function TIC()
     -- UPDATE --
 
     Physics.updateBodies()
-    Physics.resolveCollisions()
     
     Objects.cleanup()
 
