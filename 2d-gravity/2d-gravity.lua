@@ -1,3 +1,39 @@
+function TIC()
+
+    -- UI --
+
+    UI.getMouse()
+
+    if UI.mouse_left then
+        if not Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y) and #Objects.Body < Objects.MAX_OBJECT_COUNT then
+            Objects.addBody(UI.mouse_x, UI.mouse_y, 5 + math.random(0, 10))
+        end
+    end
+
+    if UI.mouse_right then
+        if Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y) then
+            Objects.destroyBodyAtPosition(UI.mouse_x, UI.mouse_y)
+        end
+    end
+
+    -- UPDATE --
+
+    Physics.updateBodies()
+    
+    Objects.cleanup()
+
+    -- DRAW --
+
+    cls(0)
+
+    GFX.drawAllBodies()
+
+    -- print total number of objects on screen
+    print("Objects: " .. #Objects.Body, 1, 1, GFX.PALETTE.WHITE)
+
+
+end
+
 Objects = { 
 
     Body = { },
@@ -113,8 +149,6 @@ function Objects.cleanup()
     Objects.checkMaxObjects()
 end
 
-
-
 Physics = {
 
     G = 6.67430e-8,
@@ -199,7 +233,6 @@ function Physics.resolveCollisions()
 
 end
 
-
 GFX = { 
 
     -- CONSTANTS --
@@ -217,8 +250,8 @@ GFX = {
 function GFX.drawTrail(body)
     for i, point in ipairs(body.trail) do
         -- Draw a fading circle or point
-        local alpha = i / #body.trail  -- from 0 to 1
-        local color = body.mass % 16  -- or use a color based on mass
+        local alpha = i / #body.trail
+        local color = body.mass % 16
         circ(point.x, point.y, alpha, color)  -- adjust size as needed
     end
 end
@@ -229,7 +262,6 @@ function GFX.drawAllBodies()
         GFX.drawTrail(body)
     end
 end
-
 
 UI = { 
 
@@ -244,44 +276,6 @@ UI = {
 function UI.getMouse()
     UI.mouse_x, UI.mouse_y, UI.mouse_left, UI.mouse_middle, UI.mouse_right = mouse()
 end
-
-
-function TIC()
-
-    -- UI --
-
-    UI.getMouse()
-
-    if UI.mouse_left then
-        if not Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y) and #Objects.Body < Objects.MAX_OBJECT_COUNT then
-            Objects.addBody(UI.mouse_x, UI.mouse_y, 5 + math.random(0, 10))
-        end
-    end
-
-    if UI.mouse_right then
-        if Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y) then
-            Objects.destroyBodyAtPosition(UI.mouse_x, UI.mouse_y)
-        end
-    end
-
-    -- UPDATE --
-
-    Physics.updateBodies()
-    
-    Objects.cleanup()
-
-    -- DRAW --
-
-    cls(0)
-
-    GFX.drawAllBodies()
-
-    -- print total number of objects on screen
-    print("Objects: " .. #Objects.Body, 1, 1, GFX.PALETTE.WHITE)
-
-
-end
-
 
 -- <WAVES>
 -- 000:00000000ffffffff00000000ffffffff
