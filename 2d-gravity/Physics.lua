@@ -1,24 +1,36 @@
+-- name: Physics.lua
+-- description: Handles physics calculations for 2D gravity simulation
+-- author: Ramona Melfry
+-- script: lua
+
+
 Physics = {
 
-    G = 6.67430e-8,
+    -- CONSTANTS --
 
+    G = 6.67430e-8,
     TIME_SCALE = 100
 
  }
 
 
+-- function to calculate the gravitational force between two bodies
 function Physics.calculateGravitationalForce(body1, body2)
+    -- calculate distance components
     local dx = body2.x - body1.x
     local dy = body2.y - body1.y
     local distance = math.sqrt(dx * dx + dy * dy)
 
+    -- avoid division by zero
     if distance == 0 then
         return 0, 0
     end
 
+    -- calculate gravitational force magnitude
     local force = Physics.G * (body1.mass * body2.mass) / (distance * distance)
     local angle = math.atan2(dy, dx)
 
+    -- convert force magnitude to X and Y components
     local forceX = force * math.cos(angle)
     local forceY = force * math.sin(angle)
 
@@ -26,13 +38,16 @@ function Physics.calculateGravitationalForce(body1, body2)
 end
 
 
+-- update all bodies' positions
 function Physics.updateBodies()
 
+    -- reset accelerations
     for _, body in pairs(Objects.Body) do
         body.ax = 0
         body.ay = 0
     end
 
+    -- calculate forces between all pairs of bodies
     for _, body1 in pairs(Objects.Body) do
         for _, body2 in pairs(Objects.Body) do
             if body1.ID ~= body2.ID then
@@ -43,7 +58,7 @@ function Physics.updateBodies()
         end
     end
 
-    -- Then, update velocity and position
+    -- update velocity and position
     for _, body in pairs(Objects.Body) do
         body.vx = body.vx + (body.ax * Physics.TIME_SCALE)
         body.vy = body.vy + (body.ay * Physics.TIME_SCALE)
@@ -58,6 +73,8 @@ function Physics.updateBodies()
     
 end
 
+
+-- resolve collisions between bodies (currently combines masses and is not implemented)
 function Physics.resolveCollisions()
     local bodiesToCombine = { }
 

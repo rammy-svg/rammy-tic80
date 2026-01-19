@@ -1,3 +1,9 @@
+-- name: Objects.lua
+-- description: Handles object creation and management for 2D gravity simulation
+-- author: Ramona Melfry
+-- script: lua
+
+
 Objects = { 
 
     Body = { },
@@ -11,6 +17,7 @@ Objects = {
 }
 
 
+-- creates a new body object
 function Objects.createBody(x, y, mass, vx, vy, type)
     local object = {
         ID = Objects.last_object_ID,
@@ -28,11 +35,15 @@ function Objects.createBody(x, y, mass, vx, vy, type)
     return object
 end
 
+
+-- adds a new body to the current simulation
 function Objects.addBody(x, y, mass, type)
     local body = Objects.createBody(x, y, mass, type)
     table.insert(Objects.Body, body)
 end
 
+
+-- returns the ID of the body at the given position, or nil if none
 function Objects.getBodyAtPosition(x, y)
     for _, body in pairs(Objects.Body) do
         local min_x = body.x - (body.mass * GFX.OBJECT_SCALE_FACTOR)
@@ -47,6 +58,8 @@ function Objects.getBodyAtPosition(x, y)
     return nil
 end
 
+
+-- destroys the body with the given ID
 function Objects.destroyBody(object_ID)
     for i, body in ipairs(Objects.Body) do
         if body.ID == object_ID then
@@ -56,6 +69,8 @@ function Objects.destroyBody(object_ID)
     end
 end
 
+
+-- destroys the body at the given position
 function Objects.destroyBodyAtPosition(x, y)
     local object_ID = Objects.getBodyAtPosition(x, y)
     if object_ID then
@@ -63,6 +78,8 @@ function Objects.destroyBodyAtPosition(x, y)
     end
 end
 
+
+-- combines two bodies into one with combined mass
 function Objects.combineMass(body1, body2)
     local combinedMass = body1.mass + body2.mass
     local combinedX = (body1.x * body1.mass + body2.x * body2.mass) / combinedMass
@@ -76,6 +93,8 @@ function Objects.combineMass(body1, body2)
     table.insert(Objects.Body, newBody)
 end
 
+
+-- updates the trail of a body
 function Objects.updateTrail(body)
     table.insert(body.trail, {x=body.x, y=body.y})
     if #body.trail > GFX.MAX_TRAIL_LENGTH then
@@ -83,6 +102,8 @@ function Objects.updateTrail(body)
     end
 end
 
+
+-- removes bodies that are out of bounds
 function Objects.removeOutOfBounds()
     for i = #Objects.Body, 1, -1 do
         local body = Objects.Body[i]
@@ -92,6 +113,8 @@ function Objects.removeOutOfBounds()
     end
 end
 
+
+-- removes bodies that exceed the maximum size
 function Objects.removeLargeBodies()
     for i = #Objects.Body, 1, -1 do
         local body = Objects.Body[i]
@@ -101,12 +124,16 @@ function Objects.removeLargeBodies()
     end
 end
 
+
+-- ensures the number of bodies does not exceed the maximum count (for performace reasons)
 function Objects.checkMaxObjects()
     while #Objects.Body > Objects.MAX_OBJECT_COUNT do
         table.remove(Objects.Body, 1)
     end
 end
 
+
+-- performs cleanup operations on the bodies
 function Objects.cleanup()
     Objects.removeOutOfBounds()
     Objects.removeLargeBodies()
