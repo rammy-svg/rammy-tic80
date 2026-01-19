@@ -9,9 +9,9 @@ function BOOT()
     GFX.updatePalette(GFX.PALETTE_INDEX)
 
     -- create some initial bodies
-    Objects.addBody(96, 64, 100, 0, 0, "fixed")  -- large fixed body in center
-    Objects.addBody(50, 64, 10, 0, 10, "default")      -- smaller body to the left
-    Objects.addBody(150, 64, 10, 0, -10, "default")    -- smaller body to the right
+    Objects.addBody(96, 64, 50, 0, 0, "fixed")  -- large fixed body in center
+    Objects.addBody(50, 64, 10, 0, 10, "fixed")      -- smaller body to the left
+    Objects.addBody(150, 64, 10, 0, -10, "fixed")    -- smaller body to the right
 
 end
 
@@ -48,13 +48,14 @@ function TIC()
     -- UPDATE --
 
     Physics.updateBodies()
-    
+    Objects.applyEffects()
     Objects.cleanup()
 
     -- DRAW --
 
     cls(0)
 
+    GFX.drawAllFX()
     GFX.drawAllBodies()
 
 
@@ -99,13 +100,20 @@ Objects = {
 function Objects.createBody(x, y, mass, vx, vy, type)
     local object = {
         ID = Objects.last_object_ID,
+        
         x = x,
         y = y,
+        
         mass = mass,
         vx = vx or 0,
         vy = vy or 0,
+        ax = 0,
+        ay = 0,
+        
         type = type or "default",
-        trail = { }
+
+        trail = { },
+        fx = nil
 
     }
 
@@ -218,7 +226,18 @@ function Objects.cleanup()
     Objects.checkMaxObjects()
 end
 
--- name: Physics.lua
+
+-- applies an effect to a body when it is accelerating rapidly
+function Objects.applyEffects()
+    for _, body in pairs(Objects.Body) do
+        local acceleration = math.sqrt(body.ax * body.ax + body.ay * body.ay)
+        if acceleration > 0.0001 then
+            body.fx = "pulse"
+        else
+            body.fx = nil
+        end
+    end
+end-- name: Physics.lua
 -- description: Handles physics calculations for 2D gravity simulation
 -- author: Ramona Melfry
 -- script: lua
@@ -228,8 +247,8 @@ Physics = {
 
     -- CONSTANTS --
 
-    G = 6.67430e-8,
-    TIME_SCALE = 100
+    G = 6.67430e-11,
+    TIME_SCALE = 5000
 
  }
 
@@ -378,11 +397,29 @@ function GFX.drawTrail(body)
 end
 
 
+-- draws a larger circle around a body that pulses while active
+function GFX.drawPulse(body)
+    local t = time()
+    local pulseSize = 2 + math.sin(t * 10) * 2
+    circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR + pulseSize, GFX.PALETTE.WHITE)
+end
+
+
 -- draws all bodies in the simulation
 function GFX.drawAllBodies()
     for _, body in pairs(Objects.Body) do
         circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR, body.mass % 16)
         GFX.drawTrail(body)
+    end
+end
+
+
+-- update bodies with effects
+function GFX.drawAllFX()
+    for _, body in pairs(Objects.Body) do
+        if body.fx == "pulse" then
+            GFX.drawPulse(body)
+        end
     end
 end
 

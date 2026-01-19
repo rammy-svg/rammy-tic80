@@ -54,11 +54,29 @@ function GFX.drawTrail(body)
 end
 
 
+-- draws a larger circle around a body that pulses while active
+function GFX.drawPulse(body)
+    local t = time()
+    local pulseSize = 2 + math.sin(t * 10) * 2
+    circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR + pulseSize, GFX.PALETTE.WHITE)
+end
+
+
 -- draws all bodies in the simulation
 function GFX.drawAllBodies()
     for _, body in pairs(Objects.Body) do
         circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR, body.mass % 16)
         GFX.drawTrail(body)
+    end
+end
+
+
+-- update bodies with effects
+function GFX.drawAllFX()
+    for _, body in pairs(Objects.Body) do
+        if body.fx == "pulse" then
+            GFX.drawPulse(body)
+        end
     end
 end
 

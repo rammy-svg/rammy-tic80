@@ -8,8 +8,8 @@ Physics = {
 
     -- CONSTANTS --
 
-    G = 6.67430e-8,
-    TIME_SCALE = 100
+    G = 6.67430e-11,
+    TIME_SCALE = 5000
 
  }
 

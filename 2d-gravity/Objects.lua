@@ -21,13 +21,20 @@ Objects = {
 function Objects.createBody(x, y, mass, vx, vy, type)
     local object = {
         ID = Objects.last_object_ID,
+        
         x = x,
         y = y,
+        
         mass = mass,
         vx = vx or 0,
         vy = vy or 0,
+        ax = 0,
+        ay = 0,
+        
         type = type or "default",
-        trail = { }
+
+        trail = { },
+        fx = nil
 
     }
 
@@ -140,3 +147,15 @@ function Objects.cleanup()
     Objects.checkMaxObjects()
 end
 
+
+-- applies an effect to a body when it is accelerating rapidly
+function Objects.applyEffects()
+    for _, body in pairs(Objects.Body) do
+        local acceleration = math.sqrt(body.ax * body.ax + body.ay * body.ay)
+        if acceleration > 0.0001 then
+            body.fx = "pulse"
+        else
+            body.fx = nil
+        end
+    end
+end
