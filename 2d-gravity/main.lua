@@ -8,6 +8,11 @@ function BOOT()
     -- set initial palette
     GFX.updatePalette(GFX.PALETTE_INDEX)
 
+    -- create some initial bodies
+    Objects.addBody(96, 64, 100, 0, 0, "fixed")  -- large fixed body in center
+    Objects.addBody(50, 64, 10, 0, 10, "default")      -- smaller body to the left
+    Objects.addBody(150, 64, 10, 0, -10, "default")    -- smaller body to the right
+
 end
 
 
@@ -19,7 +24,7 @@ function TIC()
 
     if UI.mouse_left then
         if not Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y) and #Objects.Body < Objects.MAX_OBJECT_COUNT then
-            Objects.addBody(UI.mouse_x, UI.mouse_y, 5 + math.random(0, 10))
+            Objects.addBody(UI.mouse_x, UI.mouse_y, 5 + math.random(0, 10), 0, 0, "default")
         end
     end
 
@@ -34,7 +39,7 @@ function TIC()
 		GFX.PALETTE_INDEX=GFX.PALETTE_INDEX-1 
 		GFX.updatePalette(GFX.PALETTE_INDEX)
 	end
-    
+
 	if btnp(1,20,5) and GFX.PALETTE_INDEX<#GFX.PALETTES then 
 		GFX.PALETTE_INDEX=GFX.PALETTE_INDEX+1 
 		GFX.updatePalette(GFX.PALETTE_INDEX)

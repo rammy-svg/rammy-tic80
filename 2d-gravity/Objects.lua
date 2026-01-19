@@ -37,8 +37,8 @@ end
 
 
 -- adds a new body to the current simulation
-function Objects.addBody(x, y, mass, type)
-    local body = Objects.createBody(x, y, mass, type)
+function Objects.addBody(x, y, mass, vx, vy, type)
+    local body = Objects.createBody(x, y, mass, vx, vy, type)
     table.insert(Objects.Body, body)
 end
 

@@ -60,10 +60,12 @@ function Physics.updateBodies()
 
     -- update velocity and position
     for _, body in pairs(Objects.Body) do
-        body.vx = body.vx + (body.ax * Physics.TIME_SCALE)
-        body.vy = body.vy + (body.ay * Physics.TIME_SCALE)
-        body.x = body.x + (body.vx * Physics.TIME_SCALE)
-        body.y = body.y + (body.vy * Physics.TIME_SCALE)
+        if body.type ~= "fixed" then
+            body.vx = body.vx + (body.ax * Physics.TIME_SCALE)
+            body.vy = body.vy + (body.ay * Physics.TIME_SCALE)
+            body.x = body.x + (body.vx * Physics.TIME_SCALE)
+            body.y = body.y + (body.vy * Physics.TIME_SCALE)
+        end
     end
 
     -- finally update trails
@@ -72,6 +74,7 @@ function Physics.updateBodies()
     end
     
 end
+
 
 
 -- resolve collisions between bodies (currently combines masses and is not implemented)
