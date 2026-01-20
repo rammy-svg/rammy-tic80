@@ -19,7 +19,11 @@ function Physics.calculateGravitationalForce(body1, body2)
     -- calculate distance components
     local dx = body2.x - body1.x
     local dy = body2.y - body1.y
-    local distance = math.sqrt(dx * dx + dy * dy) / Physics.TIME_SCALE
+    local distance_sq = dx * dx + dy * dy
+
+    local min_distance_sq = 4  -- minimum distance squared to avoid extreme forces
+    distance_sq = math.max(distance_sq, min_distance_sq)
+    local distance = math.sqrt(distance_sq) / Physics.TIME_SCALE
 
     -- avoid division by zero
     if distance == 0 then
@@ -80,7 +84,7 @@ end
 function Physics.limitSpeeds()
     for _, body in pairs(Objects.Body) do
         local speed = math.sqrt(body.vx * body.vx + body.vy * body.vy)
-        local maxSpeed = Physics.C * body.mass
+        local maxSpeed = Physics.C * (1 + math.log(1+body.mass/100))
 
         if speed > maxSpeed then
             local scale = maxSpeed / speed
