@@ -85,22 +85,6 @@ function Objects.destroyBodyAtPosition(x, y)
     end
 end
 
-
--- combines two bodies into one with combined mass
-function Objects.combineMass(body1, body2)
-    local combinedMass = body1.mass + body2.mass
-    local combinedX = (body1.x * body1.mass + body2.x * body2.mass) / combinedMass
-    local combinedY = (body1.y * body1.mass + body2.y * body2.mass) / combinedMass
-
-    local newBody = Objects.createBody(combinedX, combinedY, combinedMass)
-
-    Objects.destroyBody(body1.ID)
-    Objects.destroyBody(body2.ID)
-
-    table.insert(Objects.Body, newBody)
-end
-
-
 -- updates the trail of a body
 function Objects.updateTrail(body)
     table.insert(body.trail, {x=body.x, y=body.y})
