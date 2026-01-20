@@ -9,9 +9,9 @@ function BOOT()
     GFX.updatePalette(GFX.PALETTE_INDEX)
 
     -- create some initial bodies
-    Objects.addBody(96, 64, 50, 0, 0, "fixed")  -- large fixed body in center
-    Objects.addBody(50, 64, 10, 0, 10, "fixed")      -- smaller body to the left
-    Objects.addBody(150, 64, 10, 0, -10, "fixed")    -- smaller body to the right
+    Objects.addBody(96, 64, 100, 0, 0, "fixed")  -- large fixed body in center
+    Objects.addBody(50, 64, 50, 0, 10, "fixed")      -- smaller body to the left
+    Objects.addBody(150, 64, 50, 0, -10, "fixed")    -- smaller body to the right
 
 end
 

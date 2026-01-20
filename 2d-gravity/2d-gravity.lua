@@ -9,9 +9,9 @@ function BOOT()
     GFX.updatePalette(GFX.PALETTE_INDEX)
 
     -- create some initial bodies
-    Objects.addBody(96, 64, 50, 0, 0, "fixed")  -- large fixed body in center
-    Objects.addBody(50, 64, 10, 0, 10, "fixed")      -- smaller body to the left
-    Objects.addBody(150, 64, 10, 0, -10, "fixed")    -- smaller body to the right
+    Objects.addBody(96, 64, 100, 0, 0, "fixed")  -- large fixed body in center
+    Objects.addBody(50, 64, 50, 0, 10, "fixed")      -- smaller body to the left
+    Objects.addBody(150, 64, 50, 0, -10, "fixed")    -- smaller body to the right
 
 end
 
@@ -214,7 +214,7 @@ end
 function Objects.applyEffects()
     for _, body in pairs(Objects.Body) do
         local acceleration = math.sqrt(body.ax * body.ax + body.ay * body.ay)
-        if acceleration > 0.0001 then
+        if acceleration > 0.0000005 then
             body.fx = "pulse"
         else
             body.fx = nil
@@ -231,8 +231,8 @@ Physics = {
     -- CONSTANTS --
 
     G = 6.67430e-11,
-    TIME_SCALE = 5000,
-    C = 10000
+    TIME_SCALE = 100,
+    C = 100
  }
 
 
@@ -241,7 +241,7 @@ function Physics.calculateGravitationalForce(body1, body2)
     -- calculate distance components
     local dx = body2.x - body1.x
     local dy = body2.y - body1.y
-    local distance = math.sqrt(dx * dx + dy * dy)
+    local distance = math.sqrt(dx * dx + dy * dy) / Physics.TIME_SCALE
 
     -- avoid division by zero
     if distance == 0 then

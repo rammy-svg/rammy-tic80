@@ -136,7 +136,7 @@ end
 function Objects.applyEffects()
     for _, body in pairs(Objects.Body) do
         local acceleration = math.sqrt(body.ax * body.ax + body.ay * body.ay)
-        if acceleration > 0.0001 then
+        if acceleration > 0.0000005 then
             body.fx = "pulse"
         else
             body.fx = nil

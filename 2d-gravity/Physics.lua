@@ -9,8 +9,8 @@ Physics = {
     -- CONSTANTS --
 
     G = 6.67430e-11,
-    TIME_SCALE = 5000,
-    C = 10000
+    TIME_SCALE = 100,
+    C = 100
  }
 
 
@@ -19,7 +19,7 @@ function Physics.calculateGravitationalForce(body1, body2)
     -- calculate distance components
     local dx = body2.x - body1.x
     local dy = body2.y - body1.y
-    local distance = math.sqrt(dx * dx + dy * dy)
+    local distance = math.sqrt(dx * dx + dy * dy) / Physics.TIME_SCALE
 
     -- avoid division by zero
     if distance == 0 then
