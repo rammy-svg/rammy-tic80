@@ -21,16 +21,13 @@ function TIC()
     -- UI --
 
     UI.getMouse()
+    UI.debounceMouse()
 
-    if UI.mouse_left then
+     -- add body on left click
+
+    if UI.mouse_left and UI.mouse_clicked then
         if not Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y) and #Objects.Body < Objects.MAX_OBJECT_COUNT then
             Objects.addBody(UI.mouse_x, UI.mouse_y, 5 + math.random(0, 10), 0, 0, "default")
-        end
-    end
-
-    if UI.mouse_right then
-        if Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y) then
-            Objects.destroyBodyAtPosition(UI.mouse_x, UI.mouse_y)
         end
     end
 
@@ -48,6 +45,8 @@ function TIC()
     -- UPDATE --
 
     Physics.updateBodies()
+    Physics.limitSpeeds()
+
     Objects.applyEffects()
     Objects.cleanup()
 

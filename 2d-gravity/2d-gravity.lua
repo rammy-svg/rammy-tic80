@@ -21,16 +21,13 @@ function TIC()
     -- UI --
 
     UI.getMouse()
+    UI.debounceMouse()
 
-    if UI.mouse_left then
+     -- add body on left click
+
+    if UI.mouse_left and UI.mouse_clicked then
         if not Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y) and #Objects.Body < Objects.MAX_OBJECT_COUNT then
             Objects.addBody(UI.mouse_x, UI.mouse_y, 5 + math.random(0, 10), 0, 0, "default")
-        end
-    end
-
-    if UI.mouse_right then
-        if Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y) then
-            Objects.destroyBodyAtPosition(UI.mouse_x, UI.mouse_y)
         end
     end
 
@@ -48,6 +45,8 @@ function TIC()
     -- UPDATE --
 
     Physics.updateBodies()
+    Physics.limitSpeeds()
+
     Objects.applyEffects()
     Objects.cleanup()
 
@@ -248,8 +247,8 @@ Physics = {
     -- CONSTANTS --
 
     G = 6.67430e-11,
-    TIME_SCALE = 5000
-
+    TIME_SCALE = 5000,
+    C = 10000
  }
 
 
@@ -312,6 +311,21 @@ function Physics.updateBodies()
         Objects.updateTrail(body)
     end
     
+end
+
+
+-- check for speed limit violations
+function Physics.limitSpeeds()
+    for _, body in pairs(Objects.Body) do
+        local speed = math.sqrt(body.vx * body.vx + body.vy * body.vy)
+        local maxSpeed = Physics.C * body.mass
+
+        if speed > maxSpeed then
+            local scale = maxSpeed / speed
+            body.vx = body.vx * scale
+            body.vy = body.vy * scale
+        end
+    end
 end
 
 
@@ -446,7 +460,10 @@ UI = {
     mouse_y = 0,
     mouse_left = false,
     mouse_right = false,
-    mouse_middle = false
+    mouse_middle = false,
+    mouse_clicked = false,
+    mouse_released = false,
+    mouse_pressed = false
 
 }
 
@@ -454,6 +471,30 @@ UI = {
 -- updates the current mouse state
 function UI.getMouse()
     UI.mouse_x, UI.mouse_y, UI.mouse_left, UI.mouse_middle, UI.mouse_right = mouse()
+end
+
+
+-- debounce single mouseclicks/releases
+function UI.debounceMouse()
+    if UI.mouse_left or UI.mouse_right or UI.mouse_middle then
+        if not UI.mouse_pressed then
+            UI.mouse_clicked = true
+            UI.mouse_released = false
+            UI.mouse_pressed = true
+        else
+            UI.mouse_clicked = false
+            UI.mouse_released = false
+        end
+    else
+        if UI.mouse_pressed then
+            UI.mouse_released = true
+            UI.mouse_clicked = false
+            UI.mouse_pressed = false
+        else
+            UI.mouse_released = false
+            UI.mouse_clicked = false
+        end
+    end
 end
 
 -- <WAVES>

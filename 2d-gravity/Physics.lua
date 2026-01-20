@@ -9,8 +9,8 @@ Physics = {
     -- CONSTANTS --
 
     G = 6.67430e-11,
-    TIME_SCALE = 5000
-
+    TIME_SCALE = 5000,
+    C = 10000
  }
 
 
@@ -73,6 +73,21 @@ function Physics.updateBodies()
         Objects.updateTrail(body)
     end
     
+end
+
+
+-- check for speed limit violations
+function Physics.limitSpeeds()
+    for _, body in pairs(Objects.Body) do
+        local speed = math.sqrt(body.vx * body.vx + body.vy * body.vy)
+        local maxSpeed = Physics.C * body.mass
+
+        if speed > maxSpeed then
+            local scale = maxSpeed / speed
+            body.vx = body.vx * scale
+            body.vy = body.vy * scale
+        end
+    end
 end
 
 
