@@ -10,7 +10,7 @@ Physics = {
 
     G = 6.67430e-11,
     TIME_SCALE = 100,
-    C = 100
+    C = 1e+3
  }
 
 
@@ -21,7 +21,7 @@ function Physics.calculateGravitationalForce(body1, body2)
     local dy = body2.y - body1.y
     local distance_sq = dx * dx + dy * dy
 
-    local min_distance_sq = 4  -- minimum distance squared to avoid extreme forces
+    local min_distance_sq = 256  -- minimum distance squared to avoid extreme forces
     distance_sq = math.max(distance_sq, min_distance_sq)
     local distance = math.sqrt(distance_sq) / Physics.TIME_SCALE
 
@@ -42,44 +42,6 @@ function Physics.calculateGravitationalForce(body1, body2)
 end
 
 
--- update all bodies' positions
-function Physics.updateBodies()
-
-    -- reset accelerations
-    for _, body in pairs(Objects.Body) do
-        body.ax = 0
-        body.ay = 0
-    end
-
-    -- calculate forces between all pairs of bodies
-    for _, body1 in pairs(Objects.Body) do
-        for _, body2 in pairs(Objects.Body) do
-            if body1.ID ~= body2.ID then
-                local forceX, forceY = Physics.calculateGravitationalForce(body1, body2)
-                body1.ax = body1.ax + forceX / body1.mass
-                body1.ay = body1.ay + forceY / body1.mass
-            end
-        end
-    end
-
-    -- update velocity and position
-    for _, body in pairs(Objects.Body) do
-        if body.type ~= "fixed" then
-            body.vx = body.vx + (body.ax * Physics.TIME_SCALE)
-            body.vy = body.vy + (body.ay * Physics.TIME_SCALE)
-            body.x = body.x + (body.vx * Physics.TIME_SCALE)
-            body.y = body.y + (body.vy * Physics.TIME_SCALE)
-        end
-    end
-
-    -- finally update trails
-    for _, body in pairs(Objects.Body) do
-        Objects.updateTrail(body)
-    end
-    
-end
-
-
 -- check for speed limit violations
 function Physics.limitSpeeds()
     for _, body in pairs(Objects.Body) do
@@ -94,30 +56,4 @@ function Physics.limitSpeeds()
     end
 end
 
-
-
--- resolve collisions between bodies (currently combines masses and is not implemented)
-function Physics.resolveCollisions()
-    local bodiesToCombine = { }
-
-    for i = 1, #Objects.Body do
-        for j = i + 1, #Objects.Body do
-            local body1 = Objects.Body[i]
-            local body2 = Objects.Body[j]
-
-            local dx = body2.x - body1.x
-            local dy = body2.y - body1.y
-            local distance = math.sqrt(dx * dx + dy * dy)
-
-            if distance < (body1.mass + body2.mass) / 10 then
-                table.insert(bodiesToCombine, {body1, body2})
-            end
-        end
-    end
-
-    for _, pair in pairs(bodiesToCombine) do
-        Objects.combineMass(pair[1], pair[2])
-    end
-
-end
 

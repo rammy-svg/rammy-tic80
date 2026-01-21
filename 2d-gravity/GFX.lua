@@ -7,6 +7,8 @@
 
 GFX = { 
 
+    Effects = { },
+
     PALETTE_INDEX = 1,
 
     PALETTES = {
@@ -36,6 +38,8 @@ GFX = {
     PALETTE_ADDRESS=0x3FC0,
     
     PALETTE = {
+        RED = 2,
+        YELLOW = 4,
         WHITE = 12
     }
 
@@ -54,13 +58,23 @@ function GFX.drawTrail(body)
 end
 
 
--- draws a larger circle around a body that pulses while active
+-- draws a larger circle around a body that pulses
 function GFX.drawPulse(body)
     local t = time()
-    local pulseSize = 2 + math.sin(t * 10) * 2
+    local pulseSize = 2 + math.sin(t * 10)
     circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR + pulseSize, GFX.PALETTE.WHITE)
 end
 
+
+-- draws a pulse at the given position
+function GFX.drawExplosion(x, y, color, maxSize, duration)
+    local t = time()
+    local elapsed = (t % duration)
+    local size = (elapsed / duration) * maxSize
+    local offset_x = math.random(-2, 2)
+    local offset_y = math.random(-2, 2)
+    circ(x + offset_x, y + offset_y, size, color)
+end
 
 -- draws all bodies in the simulation
 function GFX.drawAllBodies()
@@ -73,11 +87,24 @@ end
 
 -- update bodies with effects
 function GFX.drawAllFX()
+
+    -- handle "aerodynamic heating" effect
     for _, body in pairs(Objects.Body) do
         if body.fx == "pulse" then
             GFX.drawPulse(body)
         end
     end
+
+    -- handle explosions
+    for i = #GFX.Effects, 1, -1 do
+        local effect = GFX.Effects[i]
+        GFX.drawExplosion(effect.x, effect.y, effect.color, effect.magnitude, effect.duration)
+        effect.duration = effect.duration - 0.1
+        if effect.duration <= 0 then
+            table.remove(GFX.Effects, i)
+        end
+    end
+    
 end
 
 

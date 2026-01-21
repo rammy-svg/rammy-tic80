@@ -9,9 +9,9 @@ function BOOT()
     GFX.updatePalette(GFX.PALETTE_INDEX)
 
     -- create some initial bodies
-    Objects.addBody(96, 64, 100, 0, 0, "fixed")  -- large fixed body in center
-    Objects.addBody(50, 64, 50, 0, 10, "fixed")      -- smaller body to the left
-    Objects.addBody(150, 64, 50, 0, -10, "fixed")    -- smaller body to the right
+    Objects.addBody(120, 64, 100, 0, 0, "fixed")  -- large fixed body in center
+    Objects.addBody(48, 64, 150, 0, 10, "fixed")      -- smaller body to the left
+    Objects.addBody(200, 64, 150, 0, -10, "fixed")    -- smaller body to the right
 
 end
 
@@ -31,6 +31,18 @@ function TIC()
         end
     end
 
+    if UI.mouse_right then
+        local bodyID = Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y)
+        if bodyID then
+            for i, body in pairs(Objects.Body) do
+                if body.ID == bodyID then
+                    table.remove(Objects.Body, i)
+                    break
+                end
+            end
+        end
+    end
+
     -- use arrow keys to select palette
     if btnp(0,20,5) and GFX.PALETTE_INDEX>1 then 
 		GFX.PALETTE_INDEX=GFX.PALETTE_INDEX-1 
@@ -44,9 +56,7 @@ function TIC()
 
     -- UPDATE --
 
-    Physics.updateBodies()
-    Physics.limitSpeeds()
-
+    Objects.updateBodies()
     Objects.applyEffects()
     Objects.cleanup()
 

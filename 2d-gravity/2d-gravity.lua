@@ -9,9 +9,9 @@ function BOOT()
     GFX.updatePalette(GFX.PALETTE_INDEX)
 
     -- create some initial bodies
-    Objects.addBody(96, 64, 100, 0, 0, "fixed")  -- large fixed body in center
-    Objects.addBody(50, 64, 50, 0, 10, "fixed")      -- smaller body to the left
-    Objects.addBody(150, 64, 50, 0, -10, "fixed")    -- smaller body to the right
+    Objects.addBody(120, 64, 100, 0, 0, "fixed")  -- large fixed body in center
+    Objects.addBody(48, 64, 150, 0, 10, "fixed")      -- smaller body to the left
+    Objects.addBody(200, 64, 150, 0, -10, "fixed")    -- smaller body to the right
 
 end
 
@@ -31,6 +31,18 @@ function TIC()
         end
     end
 
+    if UI.mouse_right then
+        local bodyID = Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y)
+        if bodyID then
+            for i, body in pairs(Objects.Body) do
+                if body.ID == bodyID then
+                    table.remove(Objects.Body, i)
+                    break
+                end
+            end
+        end
+    end
+
     -- use arrow keys to select palette
     if btnp(0,20,5) and GFX.PALETTE_INDEX>1 then 
 		GFX.PALETTE_INDEX=GFX.PALETTE_INDEX-1 
@@ -44,9 +56,7 @@ function TIC()
 
     -- UPDATE --
 
-    Physics.updateBodies()
-    Physics.limitSpeeds()
-
+    Objects.updateBodies()
     Objects.applyEffects()
     Objects.cleanup()
 
@@ -128,6 +138,19 @@ function Objects.addBody(x, y, mass, vx, vy, type)
 end
 
 
+-- destroys the body with the given ID
+function Objects.destroyBody(object_ID)
+    for i, body in ipairs(Objects.Body) do
+        if body.ID == object_ID then
+            table.remove(Objects.Body, i)
+            return
+        end
+    end
+end
+
+
+
+
 -- returns the ID of the body at the given position, or nil if none
 function Objects.getBodyAtPosition(x, y)
     for _, body in pairs(Objects.Body) do
@@ -144,17 +167,6 @@ function Objects.getBodyAtPosition(x, y)
 end
 
 
--- destroys the body with the given ID
-function Objects.destroyBody(object_ID)
-    for i, body in ipairs(Objects.Body) do
-        if body.ID == object_ID then
-            table.remove(Objects.Body, i)
-            return
-        end
-    end
-end
-
-
 -- destroys the body at the given position
 function Objects.destroyBodyAtPosition(x, y)
     local object_ID = Objects.getBodyAtPosition(x, y)
@@ -162,6 +174,9 @@ function Objects.destroyBodyAtPosition(x, y)
         Objects.destroyBody(object_ID)
     end
 end
+
+
+
 
 -- updates the trail of a body
 function Objects.updateTrail(body)
@@ -172,12 +187,68 @@ function Objects.updateTrail(body)
 end
 
 
+-- applies an effect to a body when it is accelerating rapidly
+function Objects.applyEffects()
+    for _, body in pairs(Objects.Body) do
+        local acceleration = math.sqrt(body.ax * body.ax + body.ay * body.ay)
+        if acceleration > 0.0000002 then
+            body.fx = "pulse"
+        else
+            body.fx = nil
+        end
+    end
+end
+
+
+
+-- check for collision between two bodies
+function Objects.checkCollision(body1, body2)
+    local dx = body1.x - body2.x
+    local dy = body1.y - body2.y
+    local distance = math.sqrt(dx * dx + dy * dy)
+    local minDistance = (body1.mass + body2.mass) * GFX.OBJECT_SCALE_FACTOR
+    return distance < minDistance
+end
+
+
+-- resolve collision between two bodies (1 in 3 chance to destroy both)
+function Objects.resolveCollisions(body1, body2)
+    if Objects.checkCollision(body1, body2) then
+        if math.random(3) == 1 and body1.type ~= "fixed" and body2.type ~= "fixed" then
+            last_x = (body1.x + body2.x) / 2
+            last_y = (body1.y + body2.y) / 2
+            table.insert(GFX.Effects, {x=last_x, y=last_y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
+
+            Objects.destroyBody(body1.ID)
+            Objects.destroyBody(body2.ID)
+        end
+    end
+end
+
 -- removes bodies that are out of bounds
 function Objects.removeOutOfBounds()
     for i = #Objects.Body, 1, -1 do
         local body = Objects.Body[i]
         if body.x < 0 or body.x > 240 or body.y < 0 or body.y > 136 then
             table.remove(Objects.Body, i)
+        end
+    end
+end
+
+
+-- function for screen wrap
+function Objects.screenWrap(body)
+    for _, body in pairs(Objects.Body) do
+        if body.x < 0 then
+            body.x = 240
+        elseif body.x > 240 then
+            body.x = 0
+        end
+
+        if body.y < 0 then
+            body.y = 136
+        elseif body.y > 136 then
+            body.y = 0
         end
     end
 end
@@ -202,70 +273,32 @@ function Objects.checkMaxObjects()
 end
 
 
+-- objects moving at high speeds have a chance to break apart
+function Objects.checkMaxSpeeds()
+    for i = #Objects.Body, 1, -1 do
+        local body = Objects.Body[i]
+        local speed = math.sqrt(body.vx * body.vx + body.vy * body.vy)
+        local maxSpeed = Physics.C * (1 + math.log(1+body.mass/100))
+
+        if speed > maxSpeed * 1.5 and body.type ~= "fixed" then
+            table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.RED, magnitude=5, duration=1})
+            table.remove(Objects.Body, i)
+        end
+    end
+end
+
 -- performs cleanup operations on the bodies
 function Objects.cleanup()
-    Objects.removeOutOfBounds()
+    -- Objects.removeOutOfBounds()
+    Objects.screenWrap()
     Objects.removeLargeBodies()
     Objects.checkMaxObjects()
 end
 
 
--- applies an effect to a body when it is accelerating rapidly
-function Objects.applyEffects()
-    for _, body in pairs(Objects.Body) do
-        local acceleration = math.sqrt(body.ax * body.ax + body.ay * body.ay)
-        if acceleration > 0.0000005 then
-            body.fx = "pulse"
-        else
-            body.fx = nil
-        end
-    end
-end-- name: Physics.lua
--- description: Handles physics calculations for 2D gravity simulation
--- author: Ramona Melfry
--- script: lua
-
-
-Physics = {
-
-    -- CONSTANTS --
-
-    G = 6.67430e-11,
-    TIME_SCALE = 100,
-    C = 100
- }
-
-
--- function to calculate the gravitational force between two bodies
-function Physics.calculateGravitationalForce(body1, body2)
-    -- calculate distance components
-    local dx = body2.x - body1.x
-    local dy = body2.y - body1.y
-    local distance_sq = dx * dx + dy * dy
-
-    local min_distance_sq = 4  -- minimum distance squared to avoid extreme forces
-    distance_sq = math.max(distance_sq, min_distance_sq)
-    local distance = math.sqrt(distance_sq) / Physics.TIME_SCALE
-
-    -- avoid division by zero
-    if distance == 0 then
-        return 0, 0
-    end
-
-    -- calculate gravitational force magnitude
-    local force = Physics.G * (body1.mass * body2.mass) / (distance * distance)
-    local angle = math.atan2(dy, dx)
-
-    -- convert force magnitude to X and Y components
-    local forceX = force * math.cos(angle)
-    local forceY = force * math.sin(angle)
-
-    return forceX, forceY
-end
-
 
 -- update all bodies' positions
-function Physics.updateBodies()
+function Objects.updateBodies()
 
     -- reset accelerations
     for _, body in pairs(Objects.Body) do
@@ -294,11 +327,69 @@ function Physics.updateBodies()
         end
     end
 
-    -- finally update trails
+    -- update trails
     for _, body in pairs(Objects.Body) do
         Objects.updateTrail(body)
     end
+
+
+    -- resolve collisions
+    for _, body1 in pairs(Objects.Body) do
+        for _, body2 in pairs(Objects.Body) do
+            if body1.ID ~= body2.ID then
+                Objects.resolveCollisions(body1, body2)
+            end
+        end
+    end
+
+
+    -- limit speeds
+    Physics.limitSpeeds()
+
     
+end
+
+-- name: Physics.lua
+-- description: Handles physics calculations for 2D gravity simulation
+-- author: Ramona Melfry
+-- script: lua
+
+
+Physics = {
+
+    -- CONSTANTS --
+
+    G = 6.67430e-11,
+    TIME_SCALE = 100,
+    C = 1e+3
+ }
+
+
+-- function to calculate the gravitational force between two bodies
+function Physics.calculateGravitationalForce(body1, body2)
+    -- calculate distance components
+    local dx = body2.x - body1.x
+    local dy = body2.y - body1.y
+    local distance_sq = dx * dx + dy * dy
+
+    local min_distance_sq = 256  -- minimum distance squared to avoid extreme forces
+    distance_sq = math.max(distance_sq, min_distance_sq)
+    local distance = math.sqrt(distance_sq) / Physics.TIME_SCALE
+
+    -- avoid division by zero
+    if distance == 0 then
+        return 0, 0
+    end
+
+    -- calculate gravitational force magnitude
+    local force = Physics.G * (body1.mass * body2.mass) / (distance * distance)
+    local angle = math.atan2(dy, dx)
+
+    -- convert force magnitude to X and Y components
+    local forceX = force * math.cos(angle)
+    local forceY = force * math.sin(angle)
+
+    return forceX, forceY
 end
 
 
@@ -317,32 +408,6 @@ function Physics.limitSpeeds()
 end
 
 
-
--- resolve collisions between bodies (currently combines masses and is not implemented)
-function Physics.resolveCollisions()
-    local bodiesToCombine = { }
-
-    for i = 1, #Objects.Body do
-        for j = i + 1, #Objects.Body do
-            local body1 = Objects.Body[i]
-            local body2 = Objects.Body[j]
-
-            local dx = body2.x - body1.x
-            local dy = body2.y - body1.y
-            local distance = math.sqrt(dx * dx + dy * dy)
-
-            if distance < (body1.mass + body2.mass) / 10 then
-                table.insert(bodiesToCombine, {body1, body2})
-            end
-        end
-    end
-
-    for _, pair in pairs(bodiesToCombine) do
-        Objects.combineMass(pair[1], pair[2])
-    end
-
-end
-
 -- name: GFX.lua
 -- description: Handles graphics rendering for 2D gravity simulation
 -- author: Ramona Melfry, Nesbox
@@ -351,6 +416,8 @@ end
 
 
 GFX = { 
+
+    Effects = { },
 
     PALETTE_INDEX = 1,
 
@@ -381,6 +448,8 @@ GFX = {
     PALETTE_ADDRESS=0x3FC0,
     
     PALETTE = {
+        RED = 2,
+        YELLOW = 4,
         WHITE = 12
     }
 
@@ -399,13 +468,23 @@ function GFX.drawTrail(body)
 end
 
 
--- draws a larger circle around a body that pulses while active
+-- draws a larger circle around a body that pulses
 function GFX.drawPulse(body)
     local t = time()
-    local pulseSize = 2 + math.sin(t * 10) * 2
+    local pulseSize = 2 + math.sin(t * 10)
     circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR + pulseSize, GFX.PALETTE.WHITE)
 end
 
+
+-- draws a pulse at the given position
+function GFX.drawExplosion(x, y, color, maxSize, duration)
+    local t = time()
+    local elapsed = (t % duration)
+    local size = (elapsed / duration) * maxSize
+    local offset_x = math.random(-2, 2)
+    local offset_y = math.random(-2, 2)
+    circ(x + offset_x, y + offset_y, size, color)
+end
 
 -- draws all bodies in the simulation
 function GFX.drawAllBodies()
@@ -418,11 +497,24 @@ end
 
 -- update bodies with effects
 function GFX.drawAllFX()
+
+    -- handle "aerodynamic heating" effect
     for _, body in pairs(Objects.Body) do
         if body.fx == "pulse" then
             GFX.drawPulse(body)
         end
     end
+
+    -- handle explosions
+    for i = #GFX.Effects, 1, -1 do
+        local effect = GFX.Effects[i]
+        GFX.drawExplosion(effect.x, effect.y, effect.color, effect.magnitude, effect.duration)
+        effect.duration = effect.duration - 0.1
+        if effect.duration <= 0 then
+            table.remove(GFX.Effects, i)
+        end
+    end
+    
 end
 
 
