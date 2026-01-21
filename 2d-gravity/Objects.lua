@@ -11,6 +11,8 @@ Objects = {
 
     -- CONSTANTS --
 
+    REACTIVITY = 100,  -- 1 in x chance to interact with other body on collision
+
     MAX_OBJECT_COUNT = 50,
     MAX_OBJECT_SIZE = 1000
 
@@ -126,16 +128,67 @@ end
 -- resolve collision between two bodies (1 in 3 chance to destroy both)
 function Objects.resolveCollisions(body1, body2)
     if Objects.checkCollision(body1, body2) then
-        if math.random(3) == 1 and body1.type ~= "fixed" and body2.type ~= "fixed" then
-            last_x = (body1.x + body2.x) / 2
-            last_y = (body1.y + body2.y) / 2
-            table.insert(GFX.Effects, {x=last_x, y=last_y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
-
+        if math.random(Objects.OBJECT_DESTRUCTION_CHANCE) == 1 and body1.type ~= "fixed" and body2.type ~= "fixed" then
             Objects.destroyBody(body1.ID)
             Objects.destroyBody(body2.ID)
         end
     end
 end
+
+
+-- new function for resolving collisions, taking into account mass and velocities
+function Objects.resolveCollisionsNew(body1, body2)
+    if math.random(Objects.REACTIVITY) == 1 and Objects.checkCollision(body1, body2) then
+        -- two small bodies combine at low speeds, destroy each other at high speeds
+        if body1.mass < 20 and body2.mass < 20 then
+            local relative_speed = math.sqrt((body1.vx - body2.vx)^2 + (body1.vy - body2.vy)^2)
+
+            if relative_speed < 0.000005 then
+                Objects.combineBodies(body1, body2)
+            else
+                last_x = (body1.x + body2.x) / 2
+                last_y = (body1.y + body2.y) / 2
+                table.insert(GFX.Effects, {x=last_x, y=last_y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
+                Objects.destroyBody(body1.ID)
+                Objects.destroyBody(body2.ID)
+            end
+        end
+    end
+
+end
+
+-- combines the mass of two bodies and averages their velocities
+function Objects.combineBodies(body1, body2)
+    local total_mass = body1.mass + body2.mass
+    local new_vx = (body1.vx * body1.mass + body2.vx * body2.mass) / total_mass
+    local new_vy = (body1.vy * body1.mass + body2.vy * body2.mass) / total_mass
+
+    body1.mass = total_mass
+    body1.vx = new_vx
+    body1.vy = new_vy
+
+    table.insert(GFX.Effects, {x=body2.x, y=body2.y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
+
+    Objects.destroyBody(body2.ID)
+end
+
+
+-- breaks a large body into a specified number of smaller bodies
+function Objects.breakBody(body, fragments)
+    local fragment_mass = body.mass / fragments
+    for i = 1, fragments do
+        local angle = math.random() * 2 * math.pi
+        local speed = 1 / Physics.TIME_SCALE
+        local vx = body.vx + math.cos(angle) * speed
+        local vy = body.vy + math.sin(angle) * speed
+        Objects.addBody(body.x, body.y, fragment_mass, vx, vy, "default")
+    end
+    table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.RED, magnitude=8, duration=1.5})
+    Objects.destroyBody(body.ID)
+
+end
+
+
 
 -- removes bodies that are out of bounds
 function Objects.removeOutOfBounds()
@@ -184,20 +237,6 @@ function Objects.checkMaxObjects()
     end
 end
 
-
--- objects moving at high speeds have a chance to break apart
-function Objects.checkMaxSpeeds()
-    for i = #Objects.Body, 1, -1 do
-        local body = Objects.Body[i]
-        local speed = math.sqrt(body.vx * body.vx + body.vy * body.vy)
-        local maxSpeed = Physics.C * (1 + math.log(1+body.mass/100))
-
-        if speed > maxSpeed * 1.5 and body.type ~= "fixed" then
-            table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.RED, magnitude=5, duration=1})
-            table.remove(Objects.Body, i)
-        end
-    end
-end
 
 -- performs cleanup operations on the bodies
 function Objects.cleanup()
@@ -249,7 +288,7 @@ function Objects.updateBodies()
     for _, body1 in pairs(Objects.Body) do
         for _, body2 in pairs(Objects.Body) do
             if body1.ID ~= body2.ID then
-                Objects.resolveCollisions(body1, body2)
+                Objects.resolveCollisionsNew(body1, body2)
             end
         end
     end

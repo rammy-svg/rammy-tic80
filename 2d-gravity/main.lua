@@ -35,8 +35,8 @@ function TIC()
         local bodyID = Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y)
         if bodyID then
             for i, body in pairs(Objects.Body) do
-                if body.ID == bodyID then
-                    table.remove(Objects.Body, i)
+                if body.ID == bodyID and body.type ~= "fixed" then
+                    Objects.destroyBody(bodyID)
                     break
                 end
             end
@@ -64,8 +64,9 @@ function TIC()
 
     cls(0)
 
+    GFX.drawFixedBodies()
     GFX.drawAllFX()
-    GFX.drawAllBodies()
+    GFX.drawFreeBodies()
 
 
     -- DEBUG INFO --

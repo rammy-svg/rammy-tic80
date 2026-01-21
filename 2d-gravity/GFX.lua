@@ -40,7 +40,7 @@ GFX = {
     PALETTE = {
         RED = 2,
         YELLOW = 4,
-        WHITE = 12
+        WHITE = 15
     }
 
 }
@@ -50,7 +50,7 @@ GFX = {
 function GFX.drawTrail(body)
     for i, point in ipairs(body.trail) do
         -- shrink size of trail points over time
-        local scale = i / #body.trail
+        local scale = (i / #body.trail)
         -- shift color starting with body color
         local color = (body.mass % 16) * scale
         circ(point.x, point.y, scale, color)
@@ -76,21 +76,32 @@ function GFX.drawExplosion(x, y, color, maxSize, duration)
     circ(x + offset_x, y + offset_y, size, color)
 end
 
--- draws all bodies in the simulation
-function GFX.drawAllBodies()
+-- draws all free bodies in the simulation
+function GFX.drawFreeBodies()
     for _, body in pairs(Objects.Body) do
-        circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR, body.mass % 16)
-        GFX.drawTrail(body)
+        if body.type ~= "fixed" then
+            circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR, body.mass % 16)
+            GFX.drawTrail(body)
+        end
     end
 end
 
+
+-- draws all fixed bodies in the simulation
+function GFX.drawFixedBodies()
+    for _, body in pairs(Objects.Body) do
+        if body.type == "fixed" then
+            circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR, body.mass % 16)
+        end
+    end
+end
 
 -- update bodies with effects
 function GFX.drawAllFX()
 
     -- handle "aerodynamic heating" effect
     for _, body in pairs(Objects.Body) do
-        if body.fx == "pulse" then
+        if body.fx == "pulse" and body.type ~= "fixed" then
             GFX.drawPulse(body)
         end
     end
