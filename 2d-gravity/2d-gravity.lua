@@ -9,9 +9,9 @@ function BOOT()
     GFX.updatePalette(GFX.PALETTE_INDEX)
 
     -- create some initial bodies
-    Objects.addBody(120, 64, 100, 0, 0, "fixed")  -- large fixed body in center
-    Objects.addBody(48, 64, 150, 0, 10, "fixed")      -- smaller body to the left
-    Objects.addBody(200, 64, 150, 0, -10, "fixed")    -- smaller body to the right
+    Objects.addBody(120, 64, 250, 0, 0, "fixed")  -- large fixed body in center
+    Objects.addBody(48, 64, 300, 0, 10, "fixed")      -- smaller body to the left
+    Objects.addBody(200, 64, 300, 0, -10, "fixed")    -- smaller body to the right
 
 end
 
@@ -36,12 +36,15 @@ function TIC()
         if bodyID then
             for i, body in pairs(Objects.Body) do
                 if body.ID == bodyID and body.type ~= "fixed" then
-                    Objects.destroyBody(bodyID)
+                    Objects.breakBody(body, 3)
                     break
                 end
             end
         end
     end
+
+    -- adjust simulation parameters
+    UI.changeParameters()
 
     -- use arrow keys to select palette
     if btnp(0,20,5) and GFX.PALETTE_INDEX>1 then 
@@ -83,7 +86,22 @@ function TIC()
         rect(180 + i * 4, 1, 4, 4, i)
     end
 
+    -- print currently controlled parameter and its value
+    local param = "G: "
+    local parameter_val = Physics.G
 
+    if UI.current_param == UI.SIM_PARAMETERS.C then
+        param = "C: "
+        parameter_val = Physics.C
+    elseif UI.current_param == UI.SIM_PARAMETERS.TIME_SCALE then
+        param = "TIME SCALE: "
+        parameter_val = Physics.TIME_SCALE
+    elseif UI.current_param == UI.SIM_PARAMETERS.SOFTENING then
+        param = "SOFTENING: "
+        parameter_val = Physics.SOFTENING
+    end
+
+    print(param .. parameter_val, 0, 128, GFX.PALETTE.WHITE)
 
 end
 
@@ -100,10 +118,10 @@ Objects = {
 
     -- CONSTANTS --
 
-    REACTIVITY = 100,  -- 1 in x chance to interact with other body on collision
+    REACTIVITY = 10,  -- 1 in x chance to interact with other body on collision
 
     MAX_OBJECT_COUNT = 50,
-    MAX_OBJECT_SIZE = 1000
+    MAX_OBJECT_SIZE = 100
 
 }
 
@@ -194,7 +212,7 @@ end
 function Objects.applyEffects()
     for _, body in pairs(Objects.Body) do
         local acceleration = math.sqrt(body.ax * body.ax + body.ay * body.ay)
-        if acceleration > 0.0000002 then
+        if acceleration > 0.05 then
             body.fx = "pulse"
         else
             body.fx = nil
@@ -228,11 +246,16 @@ end
 -- new function for resolving collisions, taking into account mass and velocities
 function Objects.resolveCollisionsNew(body1, body2)
     if math.random(Objects.REACTIVITY) == 1 and Objects.checkCollision(body1, body2) then
+        -- check for fixed bodies
+        if body1.type == "fixed" or body2.type == "fixed" then
+            return
+        end
+        
         -- two small bodies combine at low speeds, destroy each other at high speeds
         if body1.mass < 20 and body2.mass < 20 then
             local relative_speed = math.sqrt((body1.vx - body2.vx)^2 + (body1.vy - body2.vy)^2)
 
-            if relative_speed < 0.000005 then
+            if relative_speed < 1 then
                 Objects.combineBodies(body1, body2)
             else
                 last_x = (body1.x + body2.x) / 2
@@ -241,9 +264,29 @@ function Objects.resolveCollisionsNew(body1, body2)
                 Objects.destroyBody(body1.ID)
                 Objects.destroyBody(body2.ID)
             end
-        end
-    end
 
+
+        -- smaller bodies are absorbed by larger bodies
+        elseif body1.mass ~= body2.mass then
+            local larger_body = body1.mass > body2.mass and body1 or body2
+            local smaller_body = body1.mass > body2.mass and body2 or body1
+
+        -- large bodies have a chance to break apart when colliding with a smaller body at high speeds
+            if (body1.mass >= 20 or body2.mass >= 20) and math.random(3) == 1 then
+                local smaller_body = body1.mass > body2.mass and body2 or body1
+                local smaller_body_speed = math.sqrt(smaller_body.vx * smaller_body.vx + smaller_body.vy * smaller_body.vy)
+                if smaller_body_speed > 0.5 then
+                    table.insert(GFX.Effects, {x=smaller_body.x, y=smaller_body.y, color=GFX.PALETTE.YELLOW, magnitude=10, duration=1.5})
+                    Objects.breakBody(smaller_body, 3)
+                end
+            else
+                table.insert(GFX.Effects, {x=smaller_body.x, y=smaller_body.y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
+                Objects.combineBodies(larger_body, smaller_body)
+            end
+
+        end
+
+    end
 end
 
 -- combines the mass of two bodies and averages their velocities
@@ -312,8 +355,9 @@ end
 function Objects.removeLargeBodies()
     for i = #Objects.Body, 1, -1 do
         local body = Objects.Body[i]
-        if body.mass > Objects.MAX_OBJECT_SIZE then
-            table.remove(Objects.Body, i)
+        if body.mass > Objects.MAX_OBJECT_SIZE and body.type ~= "fixed" then
+            table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.RED, magnitude=10, duration=1.5})
+            Objects.breakBody(body, 5)
         end
     end
 end
@@ -397,50 +441,40 @@ end
 
 Physics = {
 
-    -- CONSTANTS --
+    G = 0.1,           -- scaled gravitational constant
+    C = 4.5,           -- "speed of light" (in pixels per frame)
 
-    G = 6.67430e-11,
-    TIME_SCALE = 100,
-    C = 1e+3
- }
+    TIME_SCALE = 0.5,
 
+    SOFTENING = 40
+}
 
--- function to calculate the gravitational force between two bodies
 function Physics.calculateGravitationalForce(body1, body2)
-    -- calculate distance components
     local dx = body2.x - body1.x
     local dy = body2.y - body1.y
     local distance_sq = dx * dx + dy * dy
-
-    local min_distance_sq = 256  -- minimum distance squared to avoid extreme forces
-    distance_sq = math.max(distance_sq, min_distance_sq)
-    local distance = math.sqrt(distance_sq) / Physics.TIME_SCALE
-
-    -- avoid division by zero
-    if distance == 0 then
-        return 0, 0
-    end
-
-    -- calculate gravitational force magnitude
-    local force = Physics.G * (body1.mass * body2.mass) / (distance * distance)
-    local angle = math.atan2(dy, dx)
-
-    -- convert force magnitude to X and Y components
-    local forceX = force * math.cos(angle)
-    local forceY = force * math.sin(angle)
-
+    
+    -- Apply softening to prevent extreme forces at close range
+    local softened_distance_sq = distance_sq + Physics.SOFTENING
+    
+    -- Force calculation with adjusted G
+    local force = Physics.G * (body1.mass * body2.mass) / softened_distance_sq
+    
+    -- Normalize direction vector
+    local inv_distance = 1 / math.sqrt(softened_distance_sq)
+    local forceX = force * dx * inv_distance
+    local forceY = force * dy * inv_distance
+    
     return forceX, forceY
 end
 
-
--- check for speed limit violations
 function Physics.limitSpeeds()
     for _, body in pairs(Objects.Body) do
         local speed = math.sqrt(body.vx * body.vx + body.vy * body.vy)
-        local maxSpeed = Physics.C * (1 + math.log(1+body.mass/100))
 
-        if speed > maxSpeed then
-            local scale = maxSpeed / speed
+        if speed > Physics.C then
+            -- scale down velocity to the speed of light
+            local scale = Physics.C / speed
             body.vx = body.vx * scale
             body.vy = body.vy * scale
         end
@@ -530,8 +564,14 @@ end
 function GFX.drawFreeBodies()
     for _, body in pairs(Objects.Body) do
         if body.type ~= "fixed" then
-            circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR, body.mass % 16)
+            local color = body.mass % 16
+            -- check if same as background color
+            if color < 1 then
+                color = GFX.PALETTE.WHITE
+            end
+
             GFX.drawTrail(body)
+            circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR, color)
         end
     end
 end
@@ -585,6 +625,16 @@ end
 
 UI = { 
 
+
+    -- KEYBOARD --
+
+    INPUT = {
+        KB_1 = 28,
+        KB_2 = 29,
+        KB_3 = 30,
+        KB_4 = 31
+    },
+
     -- MOUSE STATE --
 
     mouse_x = 0,
@@ -592,16 +642,32 @@ UI = {
     mouse_left = false,
     mouse_right = false,
     mouse_middle = false,
+    mouse_scroll_x = 0,
+    mouse_scroll_y = 0,
+
     mouse_clicked = false,
     mouse_released = false,
-    mouse_pressed = false
+    mouse_pressed = false,
+
+
+    -- SIMULATION CONTROL --
+
+        
+    SIM_PARAMETERS = {
+        G = 0,
+        C = 1,
+        TIME_SCALE = 2,
+        SOFTENING = 3
+    },
+
+    current_param = 0
 
 }
 
 
 -- updates the current mouse state
 function UI.getMouse()
-    UI.mouse_x, UI.mouse_y, UI.mouse_left, UI.mouse_middle, UI.mouse_right = mouse()
+    UI.mouse_x, UI.mouse_y, UI.mouse_left, UI.mouse_middle, UI.mouse_right, UI.mouse_scroll_x, UI.mouse_scroll_y = mouse()
 end
 
 
@@ -627,6 +693,84 @@ function UI.debounceMouse()
         end
     end
 end
+
+
+-- functions for detecting mouse scroll
+function UI.checkScrollWheel()
+    local up = false
+    local down = false
+    local left = false
+    local right = false
+    
+    if UI.mouse_scroll_y > 0 then
+        up = true
+    elseif UI.mouse_scroll_y < 0 then
+        down = true
+    elseif UI.mouse_scroll_x < 0 then
+        left = true
+    elseif UI.mouse_scroll_x > 0 then
+        right = true
+    end
+
+    return up, down, left, right
+end
+
+
+
+    -- MODULE SPECIFIC FUNCTIONS --
+
+-- function for changing simulation parameters with the scroll wheel
+function UI.changeParameters()
+    local units = 1
+    local operation = "add"
+    local target = "G"
+
+
+    -- change current parameter
+    if keyp(UI.INPUT.KB_1) then
+        UI.current_param = UI.SIM_PARAMETERS.G
+    elseif keyp(UI.INPUT.KB_2) then
+        UI.current_param = UI.SIM_PARAMETERS.C
+    elseif keyp(UI.INPUT.KB_3) then
+        UI.current_param = UI.SIM_PARAMETERS.TIME_SCALE
+    elseif keyp(UI.INPUT.KB_4) then
+        UI.current_param = UI.SIM_PARAMETERS.SOFTENING
+    end
+
+    if UI.current_param == UI.SIM_PARAMETERS.G then
+        target = "G"
+    elseif UI.current_param == UI.SIM_PARAMETERS.C then
+        target = "C"
+    elseif UI.current_param == UI.SIM_PARAMETERS.TIME_SCALE then
+        target = "time_scale"
+    elseif UI.current_param == UI.SIM_PARAMETERS.SOFTENING then
+        target = "soft"
+    end
+
+    if UI.mouse_scroll_y > 0 then
+        if target == "G" then
+            Physics.G = Physics.G + 0.01
+        elseif target == "C" then
+            Physics.C = Physics.C + 1
+        elseif target == "time_scale" then
+            Physics.TIME_SCALE = Physics.TIME_SCALE * 2
+        elseif target == "soft" then
+            Physics.SOFTENING = Physics.SOFTENING + 10
+        end
+    elseif UI.mouse_scroll_y < 0 then
+        if target == "G" then
+            Physics.G = Physics.G - 0.01
+        elseif target == "C" and Physics.C > 0 then
+            Physics.C = Physics.C - 1
+        elseif target == "time_scale" then
+            Physics.TIME_SCALE = Physics.TIME_SCALE / 2
+        elseif target == "soft" and Physics.SOFTENING > 0 then
+            Physics.SOFTENING = Physics.SOFTENING - 10
+        end
+    end
+
+end
+
 
 -- <WAVES>
 -- 000:00000000ffffffff00000000ffffffff

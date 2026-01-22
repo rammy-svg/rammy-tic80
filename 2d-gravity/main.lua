@@ -9,9 +9,9 @@ function BOOT()
     GFX.updatePalette(GFX.PALETTE_INDEX)
 
     -- create some initial bodies
-    Objects.addBody(120, 64, 100, 0, 0, "fixed")  -- large fixed body in center
-    Objects.addBody(48, 64, 150, 0, 10, "fixed")      -- smaller body to the left
-    Objects.addBody(200, 64, 150, 0, -10, "fixed")    -- smaller body to the right
+    Objects.addBody(120, 64, 250, 0, 0, "fixed")  -- large fixed body in center
+    Objects.addBody(48, 64, 300, 0, 10, "fixed")      -- smaller body to the left
+    Objects.addBody(200, 64, 300, 0, -10, "fixed")    -- smaller body to the right
 
 end
 
@@ -36,12 +36,15 @@ function TIC()
         if bodyID then
             for i, body in pairs(Objects.Body) do
                 if body.ID == bodyID and body.type ~= "fixed" then
-                    Objects.destroyBody(bodyID)
+                    Objects.breakBody(body, 3)
                     break
                 end
             end
         end
     end
+
+    -- adjust simulation parameters
+    UI.changeParameters()
 
     -- use arrow keys to select palette
     if btnp(0,20,5) and GFX.PALETTE_INDEX>1 then 
@@ -83,7 +86,22 @@ function TIC()
         rect(180 + i * 4, 1, 4, 4, i)
     end
 
+    -- print currently controlled parameter and its value
+    local param = "G: "
+    local parameter_val = Physics.G
 
+    if UI.current_param == UI.SIM_PARAMETERS.C then
+        param = "C: "
+        parameter_val = Physics.C
+    elseif UI.current_param == UI.SIM_PARAMETERS.TIME_SCALE then
+        param = "TIME SCALE: "
+        parameter_val = Physics.TIME_SCALE
+    elseif UI.current_param == UI.SIM_PARAMETERS.SOFTENING then
+        param = "SOFTENING: "
+        parameter_val = Physics.SOFTENING
+    end
+
+    print(param .. parameter_val, 0, 128, GFX.PALETTE.WHITE)
 
 end
 

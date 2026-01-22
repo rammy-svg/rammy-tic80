@@ -80,8 +80,14 @@ end
 function GFX.drawFreeBodies()
     for _, body in pairs(Objects.Body) do
         if body.type ~= "fixed" then
-            circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR, body.mass % 16)
+            local color = body.mass % 16
+            -- check if same as background color
+            if color < 1 then
+                color = GFX.PALETTE.WHITE
+            end
+
             GFX.drawTrail(body)
+            circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR, color)
         end
     end
 end

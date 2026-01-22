@@ -11,10 +11,10 @@ Objects = {
 
     -- CONSTANTS --
 
-    REACTIVITY = 100,  -- 1 in x chance to interact with other body on collision
+    REACTIVITY = 10,  -- 1 in x chance to interact with other body on collision
 
     MAX_OBJECT_COUNT = 50,
-    MAX_OBJECT_SIZE = 1000
+    MAX_OBJECT_SIZE = 100
 
 }
 
@@ -105,7 +105,7 @@ end
 function Objects.applyEffects()
     for _, body in pairs(Objects.Body) do
         local acceleration = math.sqrt(body.ax * body.ax + body.ay * body.ay)
-        if acceleration > 0.0000002 then
+        if acceleration > 0.05 then
             body.fx = "pulse"
         else
             body.fx = nil
@@ -139,11 +139,16 @@ end
 -- new function for resolving collisions, taking into account mass and velocities
 function Objects.resolveCollisionsNew(body1, body2)
     if math.random(Objects.REACTIVITY) == 1 and Objects.checkCollision(body1, body2) then
+        -- check for fixed bodies
+        if body1.type == "fixed" or body2.type == "fixed" then
+            return
+        end
+        
         -- two small bodies combine at low speeds, destroy each other at high speeds
         if body1.mass < 20 and body2.mass < 20 then
             local relative_speed = math.sqrt((body1.vx - body2.vx)^2 + (body1.vy - body2.vy)^2)
 
-            if relative_speed < 0.000005 then
+            if relative_speed < 1 then
                 Objects.combineBodies(body1, body2)
             else
                 last_x = (body1.x + body2.x) / 2
@@ -152,9 +157,29 @@ function Objects.resolveCollisionsNew(body1, body2)
                 Objects.destroyBody(body1.ID)
                 Objects.destroyBody(body2.ID)
             end
-        end
-    end
 
+
+        -- smaller bodies are absorbed by larger bodies
+        elseif body1.mass ~= body2.mass then
+            local larger_body = body1.mass > body2.mass and body1 or body2
+            local smaller_body = body1.mass > body2.mass and body2 or body1
+
+        -- large bodies have a chance to break apart when colliding with a smaller body at high speeds
+            if (body1.mass >= 20 or body2.mass >= 20) and math.random(3) == 1 then
+                local smaller_body = body1.mass > body2.mass and body2 or body1
+                local smaller_body_speed = math.sqrt(smaller_body.vx * smaller_body.vx + smaller_body.vy * smaller_body.vy)
+                if smaller_body_speed > 0.5 then
+                    table.insert(GFX.Effects, {x=smaller_body.x, y=smaller_body.y, color=GFX.PALETTE.YELLOW, magnitude=10, duration=1.5})
+                    Objects.breakBody(smaller_body, 3)
+                end
+            else
+                table.insert(GFX.Effects, {x=smaller_body.x, y=smaller_body.y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
+                Objects.combineBodies(larger_body, smaller_body)
+            end
+
+        end
+
+    end
 end
 
 -- combines the mass of two bodies and averages their velocities
@@ -223,8 +248,9 @@ end
 function Objects.removeLargeBodies()
     for i = #Objects.Body, 1, -1 do
         local body = Objects.Body[i]
-        if body.mass > Objects.MAX_OBJECT_SIZE then
-            table.remove(Objects.Body, i)
+        if body.mass > Objects.MAX_OBJECT_SIZE and body.type ~= "fixed" then
+            table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.RED, magnitude=10, duration=1.5})
+            Objects.breakBody(body, 5)
         end
     end
 end
