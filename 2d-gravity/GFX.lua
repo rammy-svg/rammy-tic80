@@ -50,9 +50,9 @@ GFX = {
 function GFX.drawTrail(body)
     for i, point in ipairs(body.trail) do
         -- shrink size of trail points over time
-        local scale = (i / #body.trail)
+        local scale = body.mass * (i / #body.trail) * GFX.OBJECT_SCALE_FACTOR
         -- shift color starting with body color
-        local color = (body.mass % 16) * scale
+        local color = (body.mass % 16)
         circ(point.x, point.y, scale, color)
     end
 end

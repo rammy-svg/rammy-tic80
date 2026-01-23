@@ -14,7 +14,7 @@ Objects = {
     REACTIVITY = 10,  -- 1 in x chance to interact with other body on collision
 
     MAX_OBJECT_COUNT = 50,
-    MAX_OBJECT_SIZE = 100
+    MAX_OBJECT_SIZE = 50
 
 }
 
@@ -208,7 +208,7 @@ function Objects.breakBody(body, fragments)
         local vy = body.vy + math.sin(angle) * speed
         Objects.addBody(body.x, body.y, fragment_mass, vx, vy, "default")
     end
-    table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.RED, magnitude=8, duration=1.5})
+    table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.YELLOW, magnitude=8, duration=1.5})
     Objects.destroyBody(body.ID)
 
 end
@@ -249,7 +249,7 @@ function Objects.removeLargeBodies()
     for i = #Objects.Body, 1, -1 do
         local body = Objects.Body[i]
         if body.mass > Objects.MAX_OBJECT_SIZE and body.type ~= "fixed" then
-            table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.RED, magnitude=10, duration=1.5})
+            table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.YELLOW, magnitude=10, duration=1.5})
             Objects.breakBody(body, 5)
         end
     end
@@ -264,11 +264,23 @@ function Objects.checkMaxObjects()
 end
 
 
+-- quantizes the size of bodies to discrete steps
+function Objects.quantizeBodySizes()
+    for _, body in pairs(Objects.Body) do
+        body.mass = math.floor(body.mass / 10) * 10
+        if body.mass < 10 then
+            body.mass = 10
+        end
+    end
+end
+
+
 -- performs cleanup operations on the bodies
 function Objects.cleanup()
     -- Objects.removeOutOfBounds()
     Objects.screenWrap()
     Objects.removeLargeBodies()
+    Objects.quantizeBodySizes()
     Objects.checkMaxObjects()
 end
 
