@@ -9,7 +9,22 @@ GFX = {
 
     Effects = { },
 
+        -- CONSTANTS --
+
+    EFFECTS = {
+        PULSE = 1,
+        GLOW = 2
+    },
+
     PALETTE_INDEX = 1,
+    
+    PALETTE_ADDRESS=0x3FC0,
+    
+    PALETTE = {
+        RED = 2,
+        YELLOW = 4,
+        WHITE = 15
+    },
 
     PALETTES = {
         {name="SWEETIE-16", data="1a1c2c5d275db13e53ef7d57ffcd75a7f07038b76425717929366f3b5dc941a6f673eff7333c57566c8694b0c2f4f4f4"},
@@ -29,19 +44,9 @@ GFX = {
         {name="EISLAND",    data="051625794765686086567864ca657e8686918184abcc8d867ea78839d4b98dbcd29dc085edc38de6d1d1f5e17af6f6bf"},
     },
 
-    -- CONSTANTS --
-
     OBJECT_SCALE_FACTOR = 0.1,
 
     MAX_TRAIL_LENGTH = 20,
-
-    PALETTE_ADDRESS=0x3FC0,
-    
-    PALETTE = {
-        RED = 2,
-        YELLOW = 4,
-        WHITE = 15
-    }
 
 }
 
@@ -49,20 +54,17 @@ GFX = {
 -- draws the trail of a body
 function GFX.drawTrail(body)
     for i, point in ipairs(body.trail) do
-        -- shrink size of trail points over time
-        local scale = body.mass * (i / #body.trail) * GFX.OBJECT_SCALE_FACTOR
-        -- shift color starting with body color
         local color = (body.mass % 16)
-        circ(point.x, point.y, scale, color)
+        pix(point.x, point.y, color)
     end
 end
 
 
 -- draws a larger circle around a body that pulses
-function GFX.drawPulse(body)
+function GFX.drawPulse(body, speed, color)
     local t = time()
-    local pulseSize = 2 + math.sin(t * 10)
-    circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR + pulseSize, GFX.PALETTE.WHITE)
+    local pulseSize = 2 + math.sin(t * speed) 
+    circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR + pulseSize, color)
 end
 
 
@@ -79,7 +81,7 @@ end
 -- draws all free bodies in the simulation
 function GFX.drawFreeBodies()
     for _, body in pairs(Objects.Body) do
-        if body.type ~= "fixed" then
+        if body.type ~= Objects.OBJECT_TYPE.FIXED then
             local color = body.mass % 16
             -- check if same as background color
             if color < 1 then
@@ -96,7 +98,7 @@ end
 -- draws all fixed bodies in the simulation
 function GFX.drawFixedBodies()
     for _, body in pairs(Objects.Body) do
-        if body.type == "fixed" then
+        if body.type == Objects.OBJECT_TYPE.FIXED then
             circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR, body.mass % 16)
         end
     end
@@ -107,8 +109,10 @@ function GFX.drawAllFX()
 
     -- handle "aerodynamic heating" effect
     for _, body in pairs(Objects.Body) do
-        if body.fx == "pulse" and body.type ~= "fixed" then
-            GFX.drawPulse(body)
+        if body.fx == GFX.EFFECTS.PULSE and body.type ~= Objects.OBJECT_TYPE.FIXED then
+            GFX.drawPulse(body, 10, GFX.PALETTE.YELLOW)
+        elseif body.fx == GFX.EFFECTS.GLOW and body.type ~= Objects.OBJECT_TYPE.FIXED then
+            GFX.drawPulse(body, 1, GFX.PALETTE.WHITE)
         end
     end
 

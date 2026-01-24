@@ -11,6 +11,11 @@ Objects = {
 
     -- CONSTANTS --
 
+    OBJECT_TYPE = { 
+        DEFAULT = 1,
+        FIXED = 2
+    },
+
     REACTIVITY = 10,  -- 1 in x chance to interact with other body on collision
 
     MAX_OBJECT_COUNT = 50,
@@ -33,11 +38,10 @@ function Objects.createBody(x, y, mass, vx, vy, type)
         ax = 0,
         ay = 0,
         
-        type = type or "default",
+        type = type or Objects.OBJECT_TYPE.DEFAULT,
 
         trail = { },
         fx = nil
-
     }
 
     Objects.last_object_ID = Objects.last_object_ID + 1
@@ -90,8 +94,6 @@ function Objects.destroyBodyAtPosition(x, y)
 end
 
 
-
-
 -- updates the trail of a body
 function Objects.updateTrail(body)
     table.insert(body.trail, {x=body.x, y=body.y})
@@ -102,15 +104,37 @@ end
 
 
 -- applies an effect to a body when it is accelerating rapidly
-function Objects.applyEffects()
+function Objects.effectHeat()
     for _, body in pairs(Objects.Body) do
         local acceleration = math.sqrt(body.ax * body.ax + body.ay * body.ay)
         if acceleration > 0.05 then
-            body.fx = "pulse"
+            body.fx = GFX.EFFECTS.PULSE
         else
             body.fx = nil
         end
     end
+end
+
+
+-- objects glow when traveling at high speeds
+function Objects.effectGlow()
+    for _, body in pairs(Objects.Body) do
+        local speed = math.sqrt(body.vx * body.vx + body.vy * body.vy)
+        if speed > 0.5 and body.fx ~= GFX.EFFECTS.PULSE then  -- pulse effect has priority
+            body.fx = GFX.EFFECTS.GLOW
+        elseif body.fx == GFX.EFFECTS.PULSE then
+            body.fx = GFX.EFFECTS.PULSE
+        else
+            body.fx = nil
+        end
+    end
+end
+
+
+-- applies all effects to free bodies
+function Objects.applyEffects()
+    Objects.effectHeat()
+    Objects.effectGlow()
 end
 
 
@@ -125,22 +149,12 @@ function Objects.checkCollision(body1, body2)
 end
 
 
--- resolve collision between two bodies (1 in 3 chance to destroy both)
-function Objects.resolveCollisions(body1, body2)
-    if Objects.checkCollision(body1, body2) then
-        if math.random(Objects.OBJECT_DESTRUCTION_CHANCE) == 1 and body1.type ~= "fixed" and body2.type ~= "fixed" then
-            Objects.destroyBody(body1.ID)
-            Objects.destroyBody(body2.ID)
-        end
-    end
-end
-
 
 -- new function for resolving collisions, taking into account mass and velocities
-function Objects.resolveCollisionsNew(body1, body2)
+function Objects.resolveCollisions(body1, body2)
     if math.random(Objects.REACTIVITY) == 1 and Objects.checkCollision(body1, body2) then
         -- check for fixed bodies
-        if body1.type == "fixed" or body2.type == "fixed" then
+        if body1.type == Objects.OBJECT_TYPE.FIXED or body2.type == Objects.OBJECT_TYPE.FIXED then
             return
         end
         
@@ -206,7 +220,7 @@ function Objects.breakBody(body, fragments)
         local speed = 1 / Physics.TIME_SCALE
         local vx = body.vx + math.cos(angle) * speed
         local vy = body.vy + math.sin(angle) * speed
-        Objects.addBody(body.x, body.y, fragment_mass, vx, vy, "default")
+        Objects.addBody(body.x, body.y, fragment_mass, vx, vy, Objects.OBJECT_TYPE.DEFAULT)
     end
     table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.YELLOW, magnitude=8, duration=1.5})
     Objects.destroyBody(body.ID)
@@ -248,7 +262,7 @@ end
 function Objects.removeLargeBodies()
     for i = #Objects.Body, 1, -1 do
         local body = Objects.Body[i]
-        if body.mass > Objects.MAX_OBJECT_SIZE and body.type ~= "fixed" then
+        if body.mass > Objects.MAX_OBJECT_SIZE and body.type ~= Objects.OBJECT_TYPE.FIXED then
             table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.YELLOW, magnitude=10, duration=1.5})
             Objects.breakBody(body, 5)
         end
@@ -308,7 +322,7 @@ function Objects.updateBodies()
 
     -- update velocity and position
     for _, body in pairs(Objects.Body) do
-        if body.type ~= "fixed" then
+        if body.type ~= Objects.OBJECT_TYPE.FIXED then
             body.vx = body.vx + (body.ax * Physics.TIME_SCALE)
             body.vy = body.vy + (body.ay * Physics.TIME_SCALE)
             body.x = body.x + (body.vx * Physics.TIME_SCALE)
@@ -326,7 +340,7 @@ function Objects.updateBodies()
     for _, body1 in pairs(Objects.Body) do
         for _, body2 in pairs(Objects.Body) do
             if body1.ID ~= body2.ID then
-                Objects.resolveCollisionsNew(body1, body2)
+                Objects.resolveCollisions(body1, body2)
             end
         end
     end

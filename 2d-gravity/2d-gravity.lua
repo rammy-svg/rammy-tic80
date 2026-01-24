@@ -9,9 +9,9 @@ function BOOT()
     GFX.updatePalette(GFX.PALETTE_INDEX)
 
     -- create some initial bodies
-    Objects.addBody(120, 64, 150, 0, 0, "fixed")  -- large fixed body in center
-    Objects.addBody(48, 64, 200, 0, 10, "fixed")      -- smaller body to the left
-    Objects.addBody(200, 64, 200, 0, -10, "fixed")    -- smaller body to the right
+    Objects.addBody(120, 64, 150, 0, 0, Objects.OBJECT_TYPE.FIXED)  -- large fixed body in center
+    Objects.addBody(48, 64, 200, 0, 10, Objects.OBJECT_TYPE.FIXED)      -- smaller body to the left
+    Objects.addBody(200, 64, 200, 0, -10, Objects.OBJECT_TYPE.FIXED)    -- smaller body to the right
 
 end
 
@@ -27,7 +27,7 @@ function TIC()
 
     if UI.mouse_left and UI.mouse_clicked then
         if not Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y) and #Objects.Body < Objects.MAX_OBJECT_COUNT then
-            Objects.addBody(UI.mouse_x, UI.mouse_y, 5 + math.random(0, 10), 0, 0, "default")
+            Objects.addBody(UI.mouse_x, UI.mouse_y, 5 + math.random(0, 10), 0, 0, Objects.OBJECT_TYPE.DEFAULT)
         end
     end
 
@@ -35,7 +35,7 @@ function TIC()
         local bodyID = Objects.getBodyAtPosition(UI.mouse_x, UI.mouse_y)
         if bodyID then
             for i, body in pairs(Objects.Body) do
-                if body.ID == bodyID and body.type ~= "fixed" then
+                if body.ID == bodyID and body.type ~= Objects.OBJECT_TYPE.FIXED then
                     Objects.breakBody(body, 3)
                     break
                 end
@@ -103,6 +103,59 @@ function TIC()
 
     print(param .. parameter_val, 0, 128, GFX.PALETTE.WHITE)
 
+    -- find the first non-fixed body
+    local first_free_body = nil
+    for _, body in pairs(Objects.Body) do
+        if body.type ~= Objects.OBJECT_TYPE.FIXED then
+            first_free_body = body
+            break
+        end
+    end
+
+    -- print the effect applied to first free body
+    
+    if first_free_body then
+        local effect_text = "Effect: NONE"
+        if first_free_body and first_free_body.fx == GFX.EFFECTS.PULSE then
+            effect_text = "Effect: PULSE"
+        elseif first_free_body and first_free_body.fx == GFX.EFFECTS.GLOW then
+            effect_text = "Effect: GLOW"
+        end
+        print(effect_text, 100, 128, GFX.PALETTE.WHITE)
+    end
+
+    -- print speed and acceleration values of first free body
+
+    if first_free_body then
+        local speed = math.sqrt(first_free_body.vx^2 + first_free_body.vy^2)
+        local acceleration = math.sqrt(first_free_body.ax^2 + first_free_body.ay^2)
+        print("Speed: " .. string.format("%.2f", speed), 100, 118, GFX.PALETTE.WHITE)
+        print("Accel: " .. string.format("%.2f", acceleration), 100, 108, GFX.PALETTE.WHITE)
+    end
+
+    -- draw speed and velocity vectors for first free body
+    if first_free_body then
+        -- speed vector
+        local speed_magnitude = math.sqrt(first_free_body.vx^2 + first_free_body.vy^2)
+        if speed_magnitude > 0 then
+            local speed_scale = 50 / speed_magnitude
+            line(first_free_body.x, first_free_body.y,
+                 first_free_body.x + first_free_body.vx * speed_scale,
+                 first_free_body.y + first_free_body.vy * speed_scale,
+                 GFX.PALETTE.WHITE)
+        end
+
+        -- acceleration vector
+        local accel_magnitude = math.sqrt(first_free_body.ax^2 + first_free_body.ay^2)
+        if accel_magnitude > 0 then
+            local accel_scale = 50 / accel_magnitude
+            line(first_free_body.x, first_free_body.y,
+                 first_free_body.x + first_free_body.ax * accel_scale,
+                 first_free_body.y + first_free_body.ay * accel_scale,
+                 GFX.PALETTE.RED)
+        end
+    end
+
 end
 
 -- name: Objects.lua
@@ -117,6 +170,11 @@ Objects = {
     last_object_ID = 0,
 
     -- CONSTANTS --
+
+    OBJECT_TYPE = { 
+        DEFAULT = 1,
+        FIXED = 2
+    },
 
     REACTIVITY = 10,  -- 1 in x chance to interact with other body on collision
 
@@ -140,11 +198,10 @@ function Objects.createBody(x, y, mass, vx, vy, type)
         ax = 0,
         ay = 0,
         
-        type = type or "default",
+        type = type or Objects.OBJECT_TYPE.DEFAULT,
 
         trail = { },
         fx = nil
-
     }
 
     Objects.last_object_ID = Objects.last_object_ID + 1
@@ -197,8 +254,6 @@ function Objects.destroyBodyAtPosition(x, y)
 end
 
 
-
-
 -- updates the trail of a body
 function Objects.updateTrail(body)
     table.insert(body.trail, {x=body.x, y=body.y})
@@ -209,15 +264,37 @@ end
 
 
 -- applies an effect to a body when it is accelerating rapidly
-function Objects.applyEffects()
+function Objects.effectHeat()
     for _, body in pairs(Objects.Body) do
         local acceleration = math.sqrt(body.ax * body.ax + body.ay * body.ay)
         if acceleration > 0.05 then
-            body.fx = "pulse"
+            body.fx = GFX.EFFECTS.PULSE
         else
             body.fx = nil
         end
     end
+end
+
+
+-- objects glow when traveling at high speeds
+function Objects.effectGlow()
+    for _, body in pairs(Objects.Body) do
+        local speed = math.sqrt(body.vx * body.vx + body.vy * body.vy)
+        if speed > 0.5 and body.fx ~= GFX.EFFECTS.PULSE then  -- pulse effect has priority
+            body.fx = GFX.EFFECTS.GLOW
+        elseif body.fx == GFX.EFFECTS.PULSE then
+            body.fx = GFX.EFFECTS.PULSE
+        else
+            body.fx = nil
+        end
+    end
+end
+
+
+-- applies all effects to free bodies
+function Objects.applyEffects()
+    Objects.effectHeat()
+    Objects.effectGlow()
 end
 
 
@@ -232,22 +309,12 @@ function Objects.checkCollision(body1, body2)
 end
 
 
--- resolve collision between two bodies (1 in 3 chance to destroy both)
-function Objects.resolveCollisions(body1, body2)
-    if Objects.checkCollision(body1, body2) then
-        if math.random(Objects.OBJECT_DESTRUCTION_CHANCE) == 1 and body1.type ~= "fixed" and body2.type ~= "fixed" then
-            Objects.destroyBody(body1.ID)
-            Objects.destroyBody(body2.ID)
-        end
-    end
-end
-
 
 -- new function for resolving collisions, taking into account mass and velocities
-function Objects.resolveCollisionsNew(body1, body2)
+function Objects.resolveCollisions(body1, body2)
     if math.random(Objects.REACTIVITY) == 1 and Objects.checkCollision(body1, body2) then
         -- check for fixed bodies
-        if body1.type == "fixed" or body2.type == "fixed" then
+        if body1.type == Objects.OBJECT_TYPE.FIXED or body2.type == Objects.OBJECT_TYPE.FIXED then
             return
         end
         
@@ -313,7 +380,7 @@ function Objects.breakBody(body, fragments)
         local speed = 1 / Physics.TIME_SCALE
         local vx = body.vx + math.cos(angle) * speed
         local vy = body.vy + math.sin(angle) * speed
-        Objects.addBody(body.x, body.y, fragment_mass, vx, vy, "default")
+        Objects.addBody(body.x, body.y, fragment_mass, vx, vy, Objects.OBJECT_TYPE.DEFAULT)
     end
     table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.YELLOW, magnitude=8, duration=1.5})
     Objects.destroyBody(body.ID)
@@ -355,7 +422,7 @@ end
 function Objects.removeLargeBodies()
     for i = #Objects.Body, 1, -1 do
         local body = Objects.Body[i]
-        if body.mass > Objects.MAX_OBJECT_SIZE and body.type ~= "fixed" then
+        if body.mass > Objects.MAX_OBJECT_SIZE and body.type ~= Objects.OBJECT_TYPE.FIXED then
             table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.YELLOW, magnitude=10, duration=1.5})
             Objects.breakBody(body, 5)
         end
@@ -415,7 +482,7 @@ function Objects.updateBodies()
 
     -- update velocity and position
     for _, body in pairs(Objects.Body) do
-        if body.type ~= "fixed" then
+        if body.type ~= Objects.OBJECT_TYPE.FIXED then
             body.vx = body.vx + (body.ax * Physics.TIME_SCALE)
             body.vy = body.vy + (body.ay * Physics.TIME_SCALE)
             body.x = body.x + (body.vx * Physics.TIME_SCALE)
@@ -433,7 +500,7 @@ function Objects.updateBodies()
     for _, body1 in pairs(Objects.Body) do
         for _, body2 in pairs(Objects.Body) do
             if body1.ID ~= body2.ID then
-                Objects.resolveCollisionsNew(body1, body2)
+                Objects.resolveCollisions(body1, body2)
             end
         end
     end
@@ -505,7 +572,22 @@ GFX = {
 
     Effects = { },
 
+        -- CONSTANTS --
+
+    EFFECTS = {
+        PULSE = 1,
+        GLOW = 2
+    },
+
     PALETTE_INDEX = 1,
+    
+    PALETTE_ADDRESS=0x3FC0,
+    
+    PALETTE = {
+        RED = 2,
+        YELLOW = 4,
+        WHITE = 15
+    },
 
     PALETTES = {
         {name="SWEETIE-16", data="1a1c2c5d275db13e53ef7d57ffcd75a7f07038b76425717929366f3b5dc941a6f673eff7333c57566c8694b0c2f4f4f4"},
@@ -525,19 +607,9 @@ GFX = {
         {name="EISLAND",    data="051625794765686086567864ca657e8686918184abcc8d867ea78839d4b98dbcd29dc085edc38de6d1d1f5e17af6f6bf"},
     },
 
-    -- CONSTANTS --
-
     OBJECT_SCALE_FACTOR = 0.1,
 
     MAX_TRAIL_LENGTH = 20,
-
-    PALETTE_ADDRESS=0x3FC0,
-    
-    PALETTE = {
-        RED = 2,
-        YELLOW = 4,
-        WHITE = 15
-    }
 
 }
 
@@ -545,20 +617,17 @@ GFX = {
 -- draws the trail of a body
 function GFX.drawTrail(body)
     for i, point in ipairs(body.trail) do
-        -- shrink size of trail points over time
-        local scale = body.mass * (i / #body.trail) * GFX.OBJECT_SCALE_FACTOR
-        -- shift color starting with body color
         local color = (body.mass % 16)
-        circ(point.x, point.y, scale, color)
+        pix(point.x, point.y, color)
     end
 end
 
 
 -- draws a larger circle around a body that pulses
-function GFX.drawPulse(body)
+function GFX.drawPulse(body, speed, color)
     local t = time()
-    local pulseSize = 2 + math.sin(t * 10)
-    circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR + pulseSize, GFX.PALETTE.WHITE)
+    local pulseSize = 2 + math.sin(t * speed) 
+    circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR + pulseSize, color)
 end
 
 
@@ -575,7 +644,7 @@ end
 -- draws all free bodies in the simulation
 function GFX.drawFreeBodies()
     for _, body in pairs(Objects.Body) do
-        if body.type ~= "fixed" then
+        if body.type ~= Objects.OBJECT_TYPE.FIXED then
             local color = body.mass % 16
             -- check if same as background color
             if color < 1 then
@@ -592,7 +661,7 @@ end
 -- draws all fixed bodies in the simulation
 function GFX.drawFixedBodies()
     for _, body in pairs(Objects.Body) do
-        if body.type == "fixed" then
+        if body.type == Objects.OBJECT_TYPE.FIXED then
             circ(body.x, body.y, body.mass * GFX.OBJECT_SCALE_FACTOR, body.mass % 16)
         end
     end
@@ -603,8 +672,10 @@ function GFX.drawAllFX()
 
     -- handle "aerodynamic heating" effect
     for _, body in pairs(Objects.Body) do
-        if body.fx == "pulse" and body.type ~= "fixed" then
-            GFX.drawPulse(body)
+        if body.fx == GFX.EFFECTS.PULSE and body.type ~= Objects.OBJECT_TYPE.FIXED then
+            GFX.drawPulse(body, 10, GFX.PALETTE.YELLOW)
+        elseif body.fx == GFX.EFFECTS.GLOW and body.type ~= Objects.OBJECT_TYPE.FIXED then
+            GFX.drawPulse(body, 1, GFX.PALETTE.WHITE)
         end
     end
 
