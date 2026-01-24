@@ -133,12 +133,12 @@ function TIC()
         print("Accel: " .. string.format("%.2f", acceleration), 100, 108, GFX.PALETTE.WHITE)
     end
 
-    -- draw speed and velocity vectors for first free body
+    -- draw speed, acceleration vectors for first free body
     if first_free_body then
         -- speed vector
         local speed_magnitude = math.sqrt(first_free_body.vx^2 + first_free_body.vy^2)
         if speed_magnitude > 0 then
-            local speed_scale = 50 / speed_magnitude
+            local speed_scale = speed_magnitude * 5
             line(first_free_body.x, first_free_body.y,
                  first_free_body.x + first_free_body.vx * speed_scale,
                  first_free_body.y + first_free_body.vy * speed_scale,
@@ -148,7 +148,7 @@ function TIC()
         -- acceleration vector
         local accel_magnitude = math.sqrt(first_free_body.ax^2 + first_free_body.ay^2)
         if accel_magnitude > 0 then
-            local accel_scale = 50 / accel_magnitude
+            local accel_scale = accel_magnitude * 500
             line(first_free_body.x, first_free_body.y,
                  first_free_body.x + first_free_body.ax * accel_scale,
                  first_free_body.y + first_free_body.ay * accel_scale,

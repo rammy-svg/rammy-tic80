@@ -133,12 +133,12 @@ function TIC()
         print("Accel: " .. string.format("%.2f", acceleration), 100, 108, GFX.PALETTE.WHITE)
     end
 
-    -- draw speed and velocity vectors for first free body
+    -- draw speed, acceleration vectors for first free body
     if first_free_body then
         -- speed vector
         local speed_magnitude = math.sqrt(first_free_body.vx^2 + first_free_body.vy^2)
         if speed_magnitude > 0 then
-            local speed_scale = 50 / speed_magnitude
+            local speed_scale = speed_magnitude * 5
             line(first_free_body.x, first_free_body.y,
                  first_free_body.x + first_free_body.vx * speed_scale,
                  first_free_body.y + first_free_body.vy * speed_scale,
@@ -148,7 +148,7 @@ function TIC()
         -- acceleration vector
         local accel_magnitude = math.sqrt(first_free_body.ax^2 + first_free_body.ay^2)
         if accel_magnitude > 0 then
-            local accel_scale = 50 / accel_magnitude
+            local accel_scale = accel_magnitude * 500
             line(first_free_body.x, first_free_body.y,
                  first_free_body.x + first_free_body.ax * accel_scale,
                  first_free_body.y + first_free_body.ay * accel_scale,
@@ -267,7 +267,7 @@ end
 function Objects.effectHeat()
     for _, body in pairs(Objects.Body) do
         local acceleration = math.sqrt(body.ax * body.ax + body.ay * body.ay)
-        if acceleration > 0.05 then
+        if acceleration > 0.025 then
             body.fx = GFX.EFFECTS.PULSE
         else
             body.fx = nil
@@ -280,7 +280,7 @@ end
 function Objects.effectGlow()
     for _, body in pairs(Objects.Body) do
         local speed = math.sqrt(body.vx * body.vx + body.vy * body.vy)
-        if speed > 0.5 and body.fx ~= GFX.EFFECTS.PULSE then  -- pulse effect has priority
+        if speed > 0.75 and body.fx ~= GFX.EFFECTS.PULSE then  -- pulse effect has priority
             body.fx = GFX.EFFECTS.GLOW
         elseif body.fx == GFX.EFFECTS.PULSE then
             body.fx = GFX.EFFECTS.PULSE
@@ -675,7 +675,7 @@ function GFX.drawAllFX()
         if body.fx == GFX.EFFECTS.PULSE and body.type ~= Objects.OBJECT_TYPE.FIXED then
             GFX.drawPulse(body, 10, GFX.PALETTE.YELLOW)
         elseif body.fx == GFX.EFFECTS.GLOW and body.type ~= Objects.OBJECT_TYPE.FIXED then
-            GFX.drawPulse(body, 1, GFX.PALETTE.WHITE)
+            GFX.drawPulse(body, 5, GFX.PALETTE.WHITE)
         end
     end
 

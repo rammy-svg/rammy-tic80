@@ -107,7 +107,7 @@ end
 function Objects.effectHeat()
     for _, body in pairs(Objects.Body) do
         local acceleration = math.sqrt(body.ax * body.ax + body.ay * body.ay)
-        if acceleration > 0.05 then
+        if acceleration > 0.025 then
             body.fx = GFX.EFFECTS.PULSE
         else
             body.fx = nil
@@ -120,7 +120,7 @@ end
 function Objects.effectGlow()
     for _, body in pairs(Objects.Body) do
         local speed = math.sqrt(body.vx * body.vx + body.vy * body.vy)
-        if speed > 0.5 and body.fx ~= GFX.EFFECTS.PULSE then  -- pulse effect has priority
+        if speed > 0.75 and body.fx ~= GFX.EFFECTS.PULSE then  -- pulse effect has priority
             body.fx = GFX.EFFECTS.GLOW
         elseif body.fx == GFX.EFFECTS.PULSE then
             body.fx = GFX.EFFECTS.PULSE

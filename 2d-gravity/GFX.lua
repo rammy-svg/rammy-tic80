@@ -112,7 +112,7 @@ function GFX.drawAllFX()
         if body.fx == GFX.EFFECTS.PULSE and body.type ~= Objects.OBJECT_TYPE.FIXED then
             GFX.drawPulse(body, 10, GFX.PALETTE.YELLOW)
         elseif body.fx == GFX.EFFECTS.GLOW and body.type ~= Objects.OBJECT_TYPE.FIXED then
-            GFX.drawPulse(body, 1, GFX.PALETTE.WHITE)
+            GFX.drawPulse(body, 5, GFX.PALETTE.WHITE)
         end
     end
 
