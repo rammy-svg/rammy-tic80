@@ -112,16 +112,10 @@ function TIC()
         end
     end
 
-    -- print the effect applied to first free body
-    
+    -- print the mass of the first free body
+
     if first_free_body then
-        local effect_text = "Effect: NONE"
-        if first_free_body and first_free_body.fx == GFX.EFFECTS.PULSE then
-            effect_text = "Effect: PULSE"
-        elseif first_free_body and first_free_body.fx == GFX.EFFECTS.GLOW then
-            effect_text = "Effect: GLOW"
-        end
-        print(effect_text, 100, 128, GFX.PALETTE.WHITE)
+        print("Mass: " .. string.format("%.2f", first_free_body.mass), 100, 128, GFX.PALETTE.WHITE)
     end
 
     -- print speed and acceleration values of first free body

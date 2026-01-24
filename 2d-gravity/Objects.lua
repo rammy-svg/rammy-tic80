@@ -16,6 +16,15 @@ Objects = {
         FIXED = 2
     },
 
+    COLLISION_TYPE = {
+        DESTROY = 1,
+        COMBINE = 2,
+        BOUNCE = 3,
+        BREAK = 4,
+        EXPLODE = 5,
+        ABSORB = 6
+    },
+
     REACTIVITY = 10,  -- 1 in x chance to interact with other body on collision
 
     MAX_OBJECT_COUNT = 50,
@@ -149,52 +158,113 @@ function Objects.checkCollision(body1, body2)
 end
 
 
+-- determine the type of collision between two bodies
+function Objects.getCollisionType(body1, body2)
+    local relative_speed = math.sqrt((body1.vx - body2.vx)^2 + (body1.vy - body2.vy)^2)
+    local mass_ratio = math.max(body1.mass, body2.mass) / math.min(body1.mass, body2.mass)
+    local mass_threshold = 15
 
--- new function for resolving collisions, taking into account mass and velocities
+    local larger = body1.mass > body2.mass and body1 or body2
+    local smaller = body1.mass > body2.mass and body2 or body1
+
+    -- If the mass ratio is larger than 10:
+        -- 1. The smaller body is always destroyed.
+
+    -- If the mass ratio is larger than 3: 
+        -- 1. If both bodies have a mass larger than the threshold:
+            -- a. At low speeds, bounce off of each other.
+            -- b. At high speeds, break the larger body.
+        -- 2. If one body has a mass larger than the threshold:
+            -- a. Combine both bodies. 
+        -- 3. If neither body has a mass larger than the threshold:
+            -- a. At low speeds, combine both bodies.
+            -- b. At high speeds, destroy both bodies.
+
+    -- Otherwise, if both masses are similar:
+        -- 1. If both bodies have a mass larger than the threshold:
+            -- a. At low speeds, bounce off of each other.
+            -- b. At high speeds, break both bodies (explode).
+        -- 2. If both bodies have a mass smaller than the threshold:
+            -- a. At low speeds, combine both bodies.
+            -- b. At high speeds, destroy both bodies.
+
+    if mass_ratio >= 4 then
+        return Objects.COLLISION_TYPE.ABSORB
+    elseif mass_ratio >= 1.5 then
+        if larger.mass >= mass_threshold and smaller.mass >= mass_threshold then
+            if relative_speed < 1.5 then
+                return Objects.COLLISION_TYPE.BOUNCE
+            else
+                return Objects.COLLISION_TYPE.BREAK
+            end
+        elseif larger.mass >= mass_threshold or smaller.mass >= mass_threshold then
+            return Objects.COLLISION_TYPE.COMBINE
+        else
+            if relative_speed < 1.5 then
+                return Objects.COLLISION_TYPE.COMBINE
+            else
+                return Objects.COLLISION_TYPE.DESTROY
+            end
+        end
+    else
+        if body1.mass >= mass_threshold and body2.mass >= mass_threshold then
+            if relative_speed < 1.5 then
+                return Objects.COLLISION_TYPE.BOUNCE
+            else
+                return Objects.COLLISION_TYPE.EXPLODE
+            end
+        else
+            if relative_speed < 1.5 then
+                return Objects.COLLISION_TYPE.COMBINE
+            else
+                return Objects.COLLISION_TYPE.DESTROY
+            end
+        end
+
+    end
+   
+end
+
+
+-- newer function for resolving collisions with new flags
 function Objects.resolveCollisions(body1, body2)
     if math.random(Objects.REACTIVITY) == 1 and Objects.checkCollision(body1, body2) then
         -- check for fixed bodies
         if body1.type == Objects.OBJECT_TYPE.FIXED or body2.type == Objects.OBJECT_TYPE.FIXED then
             return
         end
-        
-        -- two small bodies combine at low speeds, destroy each other at high speeds
-        if body1.mass < 20 and body2.mass < 20 then
-            local relative_speed = math.sqrt((body1.vx - body2.vx)^2 + (body1.vy - body2.vy)^2)
 
-            if relative_speed < 1 then
-                Objects.combineBodies(body1, body2)
-            else
-                last_x = (body1.x + body2.x) / 2
-                last_y = (body1.y + body2.y) / 2
-                table.insert(GFX.Effects, {x=last_x, y=last_y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
-                Objects.destroyBody(body1.ID)
-                Objects.destroyBody(body2.ID)
-            end
+        -- get the collision type
+        local collision_type = Objects.getCollisionType(body1, body2)
 
-
-        -- smaller bodies are absorbed by larger bodies
-        elseif body1.mass ~= body2.mass then
+        if collision_type == Objects.COLLISION_TYPE.DESTROY then
+            table.insert(GFX.Effects, {x=(body1.x + body2.x)/2, y=(body1.y + body2.y)/2, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
+            Objects.destroyBody(body1.ID)
+            Objects.destroyBody(body2.ID)
+        elseif collision_type == Objects.COLLISION_TYPE.COMBINE then
+            Objects.combineBodies(body1, body2)
+        elseif collision_type == Objects.COLLISION_TYPE.BOUNCE then
+            Physics.calculateElasticCollision(body1, body2)
+        elseif collision_type == Objects.COLLISION_TYPE.BREAK then
+            local larger_body = body1.mass > body2.mass and body1 or body2
+            table.insert(GFX.Effects, {x=larger_body.x, y=larger_body.y, color=GFX.PALETTE.YELLOW, magnitude=8, duration=1.5})
+            Objects.breakBody(larger_body, 3)
+        elseif collision_type == Objects.COLLISION_TYPE.EXPLODE then
+            table.insert(GFX.Effects, {x=(body1.x + body2.x)/2, y=(body1.y + body2.y)/2, color=GFX.PALETTE.YELLOW, magnitude=10, duration=1.5})
+            Objects.breakBody(body1, 3)
+            Objects.breakBody(body2, 3)
+        elseif collision_type == Objects.COLLISION_TYPE.ABSORB then
             local larger_body = body1.mass > body2.mass and body1 or body2
             local smaller_body = body1.mass > body2.mass and body2 or body1
-
-        -- large bodies have a chance to break apart when colliding with a smaller body at high speeds
-            if (body1.mass >= 20 or body2.mass >= 20) and math.random(3) == 1 then
-                local smaller_body = body1.mass > body2.mass and body2 or body1
-                local smaller_body_speed = math.sqrt(smaller_body.vx * smaller_body.vx + smaller_body.vy * smaller_body.vy)
-                if smaller_body_speed > 0.5 then
-                    table.insert(GFX.Effects, {x=smaller_body.x, y=smaller_body.y, color=GFX.PALETTE.YELLOW, magnitude=10, duration=1.5})
-                    Objects.breakBody(smaller_body, 3)
-                end
-            else
-                table.insert(GFX.Effects, {x=smaller_body.x, y=smaller_body.y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
-                Objects.combineBodies(larger_body, smaller_body)
-            end
-
+            table.insert(GFX.Effects, {x=smaller_body.x, y=smaller_body.y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
+            Objects.destroyBody(smaller_body.ID)
         end
 
     end
 end
+
+
+
 
 -- combines the mass of two bodies and averages their velocities
 function Objects.combineBodies(body1, body2)

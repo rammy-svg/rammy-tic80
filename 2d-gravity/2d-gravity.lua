@@ -112,16 +112,10 @@ function TIC()
         end
     end
 
-    -- print the effect applied to first free body
-    
+    -- print the mass of the first free body
+
     if first_free_body then
-        local effect_text = "Effect: NONE"
-        if first_free_body and first_free_body.fx == GFX.EFFECTS.PULSE then
-            effect_text = "Effect: PULSE"
-        elseif first_free_body and first_free_body.fx == GFX.EFFECTS.GLOW then
-            effect_text = "Effect: GLOW"
-        end
-        print(effect_text, 100, 128, GFX.PALETTE.WHITE)
+        print("Mass: " .. string.format("%.2f", first_free_body.mass), 100, 128, GFX.PALETTE.WHITE)
     end
 
     -- print speed and acceleration values of first free body
@@ -174,6 +168,15 @@ Objects = {
     OBJECT_TYPE = { 
         DEFAULT = 1,
         FIXED = 2
+    },
+
+    COLLISION_TYPE = {
+        DESTROY = 1,
+        COMBINE = 2,
+        BOUNCE = 3,
+        BREAK = 4,
+        EXPLODE = 5,
+        ABSORB = 6
     },
 
     REACTIVITY = 10,  -- 1 in x chance to interact with other body on collision
@@ -309,6 +312,114 @@ function Objects.checkCollision(body1, body2)
 end
 
 
+-- determine the type of collision between two bodies
+function Objects.getCollisionType(body1, body2)
+    local relative_speed = math.sqrt((body1.vx - body2.vx)^2 + (body1.vy - body2.vy)^2)
+    local mass_ratio = math.max(body1.mass, body2.mass) / math.min(body1.mass, body2.mass)
+    local mass_threshold = 15
+
+    local larger = body1.mass > body2.mass and body1 or body2
+    local smaller = body1.mass > body2.mass and body2 or body1
+
+    -- If the mass ratio is larger than 10:
+        -- 1. The smaller body is always destroyed.
+
+    -- If the mass ratio is larger than 3: 
+        -- 1. If both bodies have a mass larger than the threshold:
+            -- a. At low speeds, bounce off of each other.
+            -- b. At high speeds, break the larger body.
+        -- 2. If one body has a mass larger than the threshold:
+            -- a. Combine both bodies. 
+        -- 3. If neither body has a mass larger than the threshold:
+            -- a. At low speeds, combine both bodies.
+            -- b. At high speeds, destroy both bodies.
+
+    -- Otherwise, if both masses are similar:
+        -- 1. If both bodies have a mass larger than the threshold:
+            -- a. At low speeds, bounce off of each other.
+            -- b. At high speeds, break both bodies (explode).
+        -- 2. If both bodies have a mass smaller than the threshold:
+            -- a. At low speeds, combine both bodies.
+            -- b. At high speeds, destroy both bodies.
+
+    if mass_ratio >= 4 then
+        return Objects.COLLISION_TYPE.ABSORB
+    elseif mass_ratio >= 1.5 then
+        if larger.mass >= mass_threshold and smaller.mass >= mass_threshold then
+            if relative_speed < 1.5 then
+                return Objects.COLLISION_TYPE.BOUNCE
+            else
+                return Objects.COLLISION_TYPE.BREAK
+            end
+        elseif larger.mass >= mass_threshold or smaller.mass >= mass_threshold then
+            return Objects.COLLISION_TYPE.COMBINE
+        else
+            if relative_speed < 1.5 then
+                return Objects.COLLISION_TYPE.COMBINE
+            else
+                return Objects.COLLISION_TYPE.DESTROY
+            end
+        end
+    else
+        if body1.mass >= mass_threshold and body2.mass >= mass_threshold then
+            if relative_speed < 1.5 then
+                return Objects.COLLISION_TYPE.BOUNCE
+            else
+                return Objects.COLLISION_TYPE.EXPLODE
+            end
+        else
+            if relative_speed < 1.5 then
+                return Objects.COLLISION_TYPE.COMBINE
+            else
+                return Objects.COLLISION_TYPE.DESTROY
+            end
+        end
+
+    end
+   
+end
+
+
+-- newer function for resolving collisions with new flags
+function Objects.resolveCollisionsNew(body1, body2)
+    if math.random(Objects.REACTIVITY) == 1 and Objects.checkCollision(body1, body2) then
+        -- check for fixed bodies
+        if body1.type == Objects.OBJECT_TYPE.FIXED or body2.type == Objects.OBJECT_TYPE.FIXED then
+            return
+        end
+
+        -- get the collision type
+        local collision_type = Objects.getCollisionType(body1, body2)
+
+        if collision_type == Objects.COLLISION_TYPE.DESTROY then
+            table.insert(GFX.Effects, {x=(body1.x + body2.x)/2, y=(body1.y + body2.y)/2, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
+            Objects.destroyBody(body1.ID)
+            Objects.destroyBody(body2.ID)
+        elseif collision_type == Objects.COLLISION_TYPE.COMBINE then
+            Objects.combineBodies(body1, body2)
+        elseif collision_type == Objects.COLLISION_TYPE.BOUNCE then
+            Physics.calculateElasticCollision(body1, body2)
+        elseif collision_type == Objects.COLLISION_TYPE.BREAK then
+            local larger_body = body1.mass > body2.mass and body1 or body2
+            table.insert(GFX.Effects, {x=larger_body.x, y=larger_body.y, color=GFX.PALETTE.YELLOW, magnitude=8, duration=1.5})
+            Objects.breakBody(larger_body, 3)
+        elseif collision_type == Objects.COLLISION_TYPE.EXPLODE then
+            table.insert(GFX.Effects, {x=(body1.x + body2.x)/2, y=(body1.y + body2.y)/2, color=GFX.PALETTE.YELLOW, magnitude=10, duration=1.5})
+            Objects.breakBody(body1, 3)
+            Objects.breakBody(body2, 3)
+        elseif collision_type == Objects.COLLISION_TYPE.ABSORB then
+            local larger_body = body1.mass > body2.mass and body1 or body2
+            local smaller_body = body1.mass > body2.mass and body2 or body1
+            table.insert(GFX.Effects, {x=smaller_body.x, y=smaller_body.y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
+            Objects.destroyBody(smaller_body.ID)
+        end
+
+    end
+end
+
+
+
+
 
 -- new function for resolving collisions, taking into account mass and velocities
 function Objects.resolveCollisions(body1, body2)
@@ -355,6 +466,8 @@ function Objects.resolveCollisions(body1, body2)
 
     end
 end
+
+
 
 -- combines the mass of two bodies and averages their velocities
 function Objects.combineBodies(body1, body2)
@@ -500,7 +613,7 @@ function Objects.updateBodies()
     for _, body1 in pairs(Objects.Body) do
         for _, body2 in pairs(Objects.Body) do
             if body1.ID ~= body2.ID then
-                Objects.resolveCollisions(body1, body2)
+                Objects.resolveCollisionsNew(body1, body2)
             end
         end
     end
@@ -546,6 +659,64 @@ function Physics.calculateGravitationalForce(body1, body2)
     
     return forceX, forceY
 end
+
+function Physics.calculateElasticCollision(body1, body2)
+    -- Calculate collision normal
+    local dx = body2.x - body1.x
+    local dy = body2.y - body1.y
+    local distance = math.sqrt(dx * dx + dy * dy)
+    
+    if distance == 0 then return end
+    
+    local nx = dx / distance
+    local ny = dy / distance
+    
+    -- Separate bodies to prevent sticking
+    local overlap = (body1.mass + body2.mass) * GFX.OBJECT_SCALE_FACTOR - distance
+    if overlap > 0 then
+        local separation = overlap * 0.5
+        if body1.type ~= Objects.OBJECT_TYPE.FIXED then
+            body1.x = body1.x - nx * separation
+            body1.y = body1.y - ny * separation
+        end
+        if body2.type ~= Objects.OBJECT_TYPE.FIXED then
+            body2.x = body2.x + nx * separation
+            body2.y = body2.y + ny * separation
+        end
+    end
+    
+    -- Relative velocity
+    local dvx = body2.vx - body1.vx
+    local dvy = body2.vy - body1.vy
+    
+    -- Velocity along collision normal
+    local velocity_along_normal = dvx * nx + dvy * ny
+    
+    -- Do not resolve if velocities are separating
+    if velocity_along_normal > 0 then return end
+    
+    -- Calculate impulse scalar (with restitution coefficient)
+    local restitution = 0.8  -- Bounciness (0-1)
+    local impulse = -(1 + restitution) * velocity_along_normal
+    impulse = impulse / (1/body1.mass + 1/body2.mass)
+    
+    -- Apply impulse
+    local impulse_x = impulse * nx
+    local impulse_y = impulse * ny
+    
+    if body1.type ~= Objects.OBJECT_TYPE.FIXED then
+        body1.vx = body1.vx - impulse_x / body1.mass
+        body1.vy = body1.vy - impulse_y / body1.mass
+    end
+    
+
+    if body2.type ~= Objects.OBJECT_TYPE.FIXED then
+        body2.vx = body2.vx + impulse_x / body2.mass
+        body2.vy = body2.vy + impulse_y / body2.mass
+    end
+end
+
+
 
 function Physics.limitSpeeds()
     for _, body in pairs(Objects.Body) do
