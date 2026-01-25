@@ -13,10 +13,14 @@ function BOOT()
     Objects.addBody(48, 64, 200, 0, 10, Objects.OBJECT_TYPE.FIXED)      -- smaller body to the left
     Objects.addBody(200, 64, 200, 0, -10, Objects.OBJECT_TYPE.FIXED)    -- smaller body to the right
 
+    startup = true
+    debug = false
+
 end
 
 
 function TIC()
+
 
     -- UI --
 
@@ -74,81 +78,108 @@ function TIC()
 
     -- DEBUG INFO --
 
-    -- print total number of objects on screen
-    print("Objects: " .. #Objects.Body, 1, 1, GFX.PALETTE.WHITE)
+    if debug and not startup then
+        -- print total number of objects on screen
+        print("Objects: " .. #Objects.Body, 1, 1, GFX.PALETTE.WHITE)
 
 
-    -- print current palette name
-    print("Palette: " .. GFX.PALETTES[GFX.PALETTE_INDEX].name, 1, 10, GFX.PALETTE.WHITE)
+        -- print current palette name
+        print("Palette: " .. GFX.PALETTES[GFX.PALETTE_INDEX].name, 1, 10, GFX.PALETTE.WHITE)
 
-    -- draw swatches for current palette
-    for i=0,15 do
-        rect(180 + i * 4, 1, 4, 4, i)
-    end
-
-    -- print currently controlled parameter and its value
-    local param = "G: "
-    local parameter_val = Physics.G
-
-    if UI.current_param == UI.SIM_PARAMETERS.C then
-        param = "C: "
-        parameter_val = Physics.C
-    elseif UI.current_param == UI.SIM_PARAMETERS.TIME_SCALE then
-        param = "TIME SCALE: "
-        parameter_val = Physics.TIME_SCALE
-    elseif UI.current_param == UI.SIM_PARAMETERS.SOFTENING then
-        param = "SOFTENING: "
-        parameter_val = Physics.SOFTENING
-    end
-
-    print(param .. parameter_val, 0, 128, GFX.PALETTE.WHITE)
-
-    -- find the first non-fixed body
-    local first_free_body = nil
-    for _, body in pairs(Objects.Body) do
-        if body.type ~= Objects.OBJECT_TYPE.FIXED then
-            first_free_body = body
-            break
-        end
-    end
-
-    -- print the mass of the first free body
-
-    if first_free_body then
-        print("Mass: " .. string.format("%.2f", first_free_body.mass), 100, 128, GFX.PALETTE.WHITE)
-    end
-
-    -- print speed and acceleration values of first free body
-
-    if first_free_body then
-        local speed = math.sqrt(first_free_body.vx^2 + first_free_body.vy^2)
-        local acceleration = math.sqrt(first_free_body.ax^2 + first_free_body.ay^2)
-        print("Speed: " .. string.format("%.2f", speed), 100, 118, GFX.PALETTE.WHITE)
-        print("Accel: " .. string.format("%.2f", acceleration), 100, 108, GFX.PALETTE.WHITE)
-    end
-
-    -- draw speed, acceleration vectors for first free body
-    if first_free_body then
-        -- speed vector
-        local speed_magnitude = math.sqrt(first_free_body.vx^2 + first_free_body.vy^2)
-        if speed_magnitude > 0 then
-            local speed_scale = speed_magnitude * 5
-            line(first_free_body.x, first_free_body.y,
-                 first_free_body.x + first_free_body.vx * speed_scale,
-                 first_free_body.y + first_free_body.vy * speed_scale,
-                 GFX.PALETTE.WHITE)
+        -- draw swatches for current palette
+        for i=0,15 do
+            rect(180 + i * 4, 1, 4, 4, i)
         end
 
-        -- acceleration vector
-        local accel_magnitude = math.sqrt(first_free_body.ax^2 + first_free_body.ay^2)
-        if accel_magnitude > 0 then
-            local accel_scale = accel_magnitude * 500
-            line(first_free_body.x, first_free_body.y,
-                 first_free_body.x + first_free_body.ax * accel_scale,
-                 first_free_body.y + first_free_body.ay * accel_scale,
-                 GFX.PALETTE.RED)
+        -- print currently controlled parameter and its value
+        local param = "G: "
+        local parameter_val = Physics.G
+
+        if UI.current_param == UI.SIM_PARAMETERS.C then
+            param = "C: "
+            parameter_val = Physics.C
+        elseif UI.current_param == UI.SIM_PARAMETERS.TIME_SCALE then
+            param = "TIME SCALE: "
+            parameter_val = Physics.TIME_SCALE
+        elseif UI.current_param == UI.SIM_PARAMETERS.SOFTENING then
+            param = "SOFTENING: "
+            parameter_val = Physics.SOFTENING
         end
+
+        print(param .. parameter_val, 0, 128, GFX.PALETTE.WHITE)
+
+        -- find the first non-fixed body
+        local first_free_body = nil
+        for _, body in pairs(Objects.Body) do
+            if body.type ~= Objects.OBJECT_TYPE.FIXED then
+                first_free_body = body
+                break
+            end
+        end
+
+        -- print the mass of the first free body
+
+        if first_free_body then
+            print("Mass: " .. string.format("%.2f", first_free_body.mass), 100, 128, GFX.PALETTE.WHITE)
+        end
+
+        -- print the temperature of the first free body
+        if first_free_body then
+            print("Temp: " .. string.format("%.2f", first_free_body.temp), 148, 128, GFX.PALETTE.WHITE)
+        end
+
+        -- print speed and acceleration values of first free body
+
+        if first_free_body then
+            local speed = math.sqrt(first_free_body.vx^2 + first_free_body.vy^2)
+            local acceleration = math.sqrt(first_free_body.ax^2 + first_free_body.ay^2)
+            print("Speed: " .. string.format("%.2f", speed), 100, 118, GFX.PALETTE.WHITE)
+            print("Accel: " .. string.format("%.2f", acceleration), 100, 108, GFX.PALETTE.WHITE)
+        end
+
+        -- draw speed, acceleration vectors for first free body
+        if first_free_body then
+            -- speed vector
+            local speed_magnitude = math.sqrt(first_free_body.vx^2 + first_free_body.vy^2)
+            if speed_magnitude > 0 then
+                local speed_scale = speed_magnitude * 5
+                line(first_free_body.x, first_free_body.y,
+                    first_free_body.x + first_free_body.vx * speed_scale,
+                    first_free_body.y + first_free_body.vy * speed_scale,
+                    GFX.PALETTE.WHITE)
+            end
+
+            -- acceleration vector
+            local accel_magnitude = math.sqrt(first_free_body.ax^2 + first_free_body.ay^2)
+            if accel_magnitude > 0 then
+                local accel_scale = accel_magnitude * 500
+                line(first_free_body.x, first_free_body.y,
+                    first_free_body.x + first_free_body.ax * accel_scale,
+                    first_free_body.y + first_free_body.ay * accel_scale,
+                    GFX.PALETTE.RED)
+            end
+        end
+
     end
+    -- show a little splash screen at startup
+    local t = time()
+
+    if t < 3000 and startup then
+        cls(0)
+        print("2D GRAVITY SIMULATION", 64, 64, GFX.PALETTE.YELLOW)
+        print("by me, Ramona Melfry!", 64, 72, GFX.PALETTE.WHITE)
+
+        if debug then
+            print("DEBUG MODE", 90, 80, GFX.PALETTE.RED)
+        end
+
+        if keyp(UI.INPUT.KB_1) then
+            debug = true
+        end
+
+	elseif t >= 3000 and startup then
+		startup = false
+	end
 
 end
 
@@ -196,6 +227,7 @@ function Objects.createBody(x, y, mass, vx, vy, type)
         y = y,
         
         mass = mass,
+        temp = 0,
         vx = vx or 0,
         vy = vy or 0,
         ax = 0,
@@ -301,7 +333,6 @@ function Objects.applyEffects()
 end
 
 
-
 -- check for collision between two bodies
 function Objects.checkCollision(body1, body2)
     local dx = body1.x - body2.x
@@ -381,7 +412,7 @@ end
 
 
 -- newer function for resolving collisions with new flags
-function Objects.resolveCollisionsNew(body1, body2)
+function Objects.resolveCollisions(body1, body2)
     if math.random(Objects.REACTIVITY) == 1 and Objects.checkCollision(body1, body2) then
         -- check for fixed bodies
         if body1.type == Objects.OBJECT_TYPE.FIXED or body2.type == Objects.OBJECT_TYPE.FIXED then
@@ -396,12 +427,14 @@ function Objects.resolveCollisionsNew(body1, body2)
             Objects.destroyBody(body1.ID)
             Objects.destroyBody(body2.ID)
         elseif collision_type == Objects.COLLISION_TYPE.COMBINE then
+            Physics.calculateElasticCollision(body1, body2)
             Objects.combineBodies(body1, body2)
         elseif collision_type == Objects.COLLISION_TYPE.BOUNCE then
             Physics.calculateElasticCollision(body1, body2)
         elseif collision_type == Objects.COLLISION_TYPE.BREAK then
             local larger_body = body1.mass > body2.mass and body1 or body2
             table.insert(GFX.Effects, {x=larger_body.x, y=larger_body.y, color=GFX.PALETTE.YELLOW, magnitude=8, duration=1.5})
+            Physics.calculateElasticCollision(body1, body2)
             Objects.breakBody(larger_body, 3)
         elseif collision_type == Objects.COLLISION_TYPE.EXPLODE then
             table.insert(GFX.Effects, {x=(body1.x + body2.x)/2, y=(body1.y + body2.y)/2, color=GFX.PALETTE.YELLOW, magnitude=10, duration=1.5})
@@ -411,61 +444,13 @@ function Objects.resolveCollisionsNew(body1, body2)
             local larger_body = body1.mass > body2.mass and body1 or body2
             local smaller_body = body1.mass > body2.mass and body2 or body1
             table.insert(GFX.Effects, {x=smaller_body.x, y=smaller_body.y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
+            Physics.calculateElasticCollision(body1, body2)
             Objects.destroyBody(smaller_body.ID)
         end
 
     end
 end
 
-
-
-
-
--- new function for resolving collisions, taking into account mass and velocities
-function Objects.resolveCollisions(body1, body2)
-    if math.random(Objects.REACTIVITY) == 1 and Objects.checkCollision(body1, body2) then
-        -- check for fixed bodies
-        if body1.type == Objects.OBJECT_TYPE.FIXED or body2.type == Objects.OBJECT_TYPE.FIXED then
-            return
-        end
-        
-        -- two small bodies combine at low speeds, destroy each other at high speeds
-        if body1.mass < 20 and body2.mass < 20 then
-            local relative_speed = math.sqrt((body1.vx - body2.vx)^2 + (body1.vy - body2.vy)^2)
-
-            if relative_speed < 1 then
-                Objects.combineBodies(body1, body2)
-            else
-                last_x = (body1.x + body2.x) / 2
-                last_y = (body1.y + body2.y) / 2
-                table.insert(GFX.Effects, {x=last_x, y=last_y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
-                Objects.destroyBody(body1.ID)
-                Objects.destroyBody(body2.ID)
-            end
-
-
-        -- smaller bodies are absorbed by larger bodies
-        elseif body1.mass ~= body2.mass then
-            local larger_body = body1.mass > body2.mass and body1 or body2
-            local smaller_body = body1.mass > body2.mass and body2 or body1
-
-        -- large bodies have a chance to break apart when colliding with a smaller body at high speeds
-            if (body1.mass >= 20 or body2.mass >= 20) and math.random(3) == 1 then
-                local smaller_body = body1.mass > body2.mass and body2 or body1
-                local smaller_body_speed = math.sqrt(smaller_body.vx * smaller_body.vx + smaller_body.vy * smaller_body.vy)
-                if smaller_body_speed > 0.5 then
-                    table.insert(GFX.Effects, {x=smaller_body.x, y=smaller_body.y, color=GFX.PALETTE.YELLOW, magnitude=10, duration=1.5})
-                    Objects.breakBody(smaller_body, 3)
-                end
-            else
-                table.insert(GFX.Effects, {x=smaller_body.x, y=smaller_body.y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
-                Objects.combineBodies(larger_body, smaller_body)
-            end
-
-        end
-
-    end
-end
 
 
 
@@ -603,6 +588,26 @@ function Objects.updateBodies()
         end
     end
 
+
+    -- handle heat effects
+    for _, body in pairs(Objects.Body) do
+        local speed = math.sqrt(body.vx^2 + body.vy^2)
+        if speed > 1.5 then
+            body.temp = body.temp + 1
+        else
+            body.temp = math.max(0, body.temp - 1)
+        end
+
+        if body.type ~= Objects.OBJECT_TYPE.FIXED and body.temp > 300 then
+            table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.WHITE, magnitude=3, duration=1})
+            if body.mass < 20 then
+                Objects.destroyBody(body.ID)
+            else
+                Objects.breakBody(body, 5)
+            end
+        end
+    end
+
     -- update trails
     for _, body in pairs(Objects.Body) do
         Objects.updateTrail(body)
@@ -613,7 +618,7 @@ function Objects.updateBodies()
     for _, body1 in pairs(Objects.Body) do
         for _, body2 in pairs(Objects.Body) do
             if body1.ID ~= body2.ID then
-                Objects.resolveCollisionsNew(body1, body2)
+                Objects.resolveCollisions(body1, body2)
             end
         end
     end

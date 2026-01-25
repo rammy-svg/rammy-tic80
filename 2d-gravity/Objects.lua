@@ -42,6 +42,7 @@ function Objects.createBody(x, y, mass, vx, vy, type)
         y = y,
         
         mass = mass,
+        temp = 0,
         vx = vx or 0,
         vy = vy or 0,
         ax = 0,
@@ -147,7 +148,6 @@ function Objects.applyEffects()
 end
 
 
-
 -- check for collision between two bodies
 function Objects.checkCollision(body1, body2)
     local dx = body1.x - body2.x
@@ -242,12 +242,14 @@ function Objects.resolveCollisions(body1, body2)
             Objects.destroyBody(body1.ID)
             Objects.destroyBody(body2.ID)
         elseif collision_type == Objects.COLLISION_TYPE.COMBINE then
+            Physics.calculateElasticCollision(body1, body2)
             Objects.combineBodies(body1, body2)
         elseif collision_type == Objects.COLLISION_TYPE.BOUNCE then
             Physics.calculateElasticCollision(body1, body2)
         elseif collision_type == Objects.COLLISION_TYPE.BREAK then
             local larger_body = body1.mass > body2.mass and body1 or body2
             table.insert(GFX.Effects, {x=larger_body.x, y=larger_body.y, color=GFX.PALETTE.YELLOW, magnitude=8, duration=1.5})
+            Physics.calculateElasticCollision(body1, body2)
             Objects.breakBody(larger_body, 3)
         elseif collision_type == Objects.COLLISION_TYPE.EXPLODE then
             table.insert(GFX.Effects, {x=(body1.x + body2.x)/2, y=(body1.y + body2.y)/2, color=GFX.PALETTE.YELLOW, magnitude=10, duration=1.5})
@@ -257,6 +259,7 @@ function Objects.resolveCollisions(body1, body2)
             local larger_body = body1.mass > body2.mass and body1 or body2
             local smaller_body = body1.mass > body2.mass and body2 or body1
             table.insert(GFX.Effects, {x=smaller_body.x, y=smaller_body.y, color=GFX.PALETTE.YELLOW, magnitude=5, duration=1})
+            Physics.calculateElasticCollision(body1, body2)
             Objects.destroyBody(smaller_body.ID)
         end
 
@@ -397,6 +400,26 @@ function Objects.updateBodies()
             body.vy = body.vy + (body.ay * Physics.TIME_SCALE)
             body.x = body.x + (body.vx * Physics.TIME_SCALE)
             body.y = body.y + (body.vy * Physics.TIME_SCALE)
+        end
+    end
+
+
+    -- handle heat effects
+    for _, body in pairs(Objects.Body) do
+        local speed = math.sqrt(body.vx^2 + body.vy^2)
+        if speed > 1.5 then
+            body.temp = body.temp + 1
+        else
+            body.temp = math.max(0, body.temp - 1)
+        end
+
+        if body.type ~= Objects.OBJECT_TYPE.FIXED and body.temp > 300 then
+            table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.WHITE, magnitude=3, duration=1})
+            if body.mass < 20 then
+                Objects.destroyBody(body.ID)
+            else
+                Objects.breakBody(body, 5)
+            end
         end
     end
 
