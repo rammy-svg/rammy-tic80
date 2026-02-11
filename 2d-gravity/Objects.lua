@@ -408,18 +408,14 @@ function Objects.updateBodies()
     for _, body in pairs(Objects.Body) do
         local speed = math.sqrt(body.vx^2 + body.vy^2)
         if speed > 1.5 then
-            body.temp = body.temp + 1
-        else
-            body.temp = math.max(0, body.temp - 1)
+            body.temp = body.temp + Physics.TIME_SCALE * 5
+        elseif body.temp > 0 then
+            body.temp = body.temp - Physics.TIME_SCALE * 2
         end
 
         if body.type ~= Objects.OBJECT_TYPE.FIXED and body.temp > 300 then
             table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.WHITE, magnitude=3, duration=1})
-            if body.mass < 20 then
-                Objects.destroyBody(body.ID)
-            else
-                Objects.breakBody(body, 5)
-            end
+            Objects.destroyBody(body.ID)
         end
     end
 

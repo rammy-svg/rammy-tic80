@@ -9,9 +9,7 @@ function BOOT()
     GFX.updatePalette(GFX.PALETTE_INDEX)
 
     -- create some initial bodies
-    Objects.addBody(120, 64, 150, 0, 0, Objects.OBJECT_TYPE.FIXED)  -- large fixed body in center
-    Objects.addBody(48, 64, 200, 0, 10, Objects.OBJECT_TYPE.FIXED)      -- smaller body to the left
-    Objects.addBody(200, 64, 200, 0, -10, Objects.OBJECT_TYPE.FIXED)    -- smaller body to the right
+    Objects.addBody(120, 64, 300, 0, 0, Objects.OBJECT_TYPE.FIXED)  -- large fixed body in center
 
     startup = true
     debug = false
@@ -593,18 +591,14 @@ function Objects.updateBodies()
     for _, body in pairs(Objects.Body) do
         local speed = math.sqrt(body.vx^2 + body.vy^2)
         if speed > 1.5 then
-            body.temp = body.temp + 1
-        else
-            body.temp = math.max(0, body.temp - 1)
+            body.temp = body.temp + Physics.TIME_SCALE * 5
+        elseif body.temp > 0 then
+            body.temp = body.temp - Physics.TIME_SCALE * 2
         end
 
         if body.type ~= Objects.OBJECT_TYPE.FIXED and body.temp > 300 then
             table.insert(GFX.Effects, {x=body.x, y=body.y, color=GFX.PALETTE.WHITE, magnitude=3, duration=1})
-            if body.mass < 20 then
-                Objects.destroyBody(body.ID)
-            else
-                Objects.breakBody(body, 5)
-            end
+            Objects.destroyBody(body.ID)
         end
     end
 
@@ -638,12 +632,12 @@ end
 
 Physics = {
 
-    G = 0.1,           -- scaled gravitational constant
-    C = 4.5,           -- "speed of light" (in pixels per frame)
+    G = 0.07,           -- scaled gravitational constant
+    C = 2.5,           -- "speed of light" (in pixels per frame)
 
-    TIME_SCALE = 0.5,
+    TIME_SCALE = 1.0,
 
-    SOFTENING = 40
+    SOFTENING = 150
 }
 
 function Physics.calculateGravitationalForce(body1, body2)

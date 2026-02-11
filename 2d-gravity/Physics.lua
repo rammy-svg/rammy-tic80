@@ -6,12 +6,12 @@
 
 Physics = {
 
-    G = 0.1,           -- scaled gravitational constant
-    C = 4.5,           -- "speed of light" (in pixels per frame)
+    G = 0.07,           -- scaled gravitational constant
+    C = 2.5,           -- "speed of light" (in pixels per frame)
 
-    TIME_SCALE = 0.5,
+    TIME_SCALE = 1.0,
 
-    SOFTENING = 40
+    SOFTENING = 150
 }
 
 function Physics.calculateGravitationalForce(body1, body2)
