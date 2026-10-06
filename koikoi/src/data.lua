@@ -6,15 +6,13 @@
 
 
     -- CARDS --
-
-
     
 function Cards.CONSTANTS()
 
     local c = Cards
 
 
-    c.MONTHS = {
+    c.MONTH = {
 
         JANUARY = 0,
         FEBRUARY = 1,
@@ -31,7 +29,7 @@ function Cards.CONSTANTS()
 
     }
 
-    c.TYPE = {
+    c.VALUE = {
 
         CHAFF = 0,
         POETRY = 1,
@@ -41,3 +39,4 @@ function Cards.CONSTANTS()
     }
 
 end
+

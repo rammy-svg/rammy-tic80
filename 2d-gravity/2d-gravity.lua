@@ -11,8 +11,7 @@ function BOOT()
     -- create some initial bodies
     Objects.addBody(120, 64, 300, 0, 0, Objects.OBJECT_TYPE.FIXED)  -- large fixed body in center
 
-    startup = true
-    debug = false
+    debugMode = true
 
 end
 
@@ -76,7 +75,7 @@ function TIC()
 
     -- DEBUG INFO --
 
-    if debug and not startup then
+    if debugMode then
         -- print total number of objects on screen
         print("Objects: " .. #Objects.Body, 1, 1, GFX.PALETTE.WHITE)
 
@@ -159,25 +158,6 @@ function TIC()
         end
 
     end
-    -- show a little splash screen at startup
-    local t = time()
-
-    if t < 3000 and startup then
-        cls(0)
-        print("2D GRAVITY SIMULATION", 64, 64, GFX.PALETTE.YELLOW)
-        print("by me, Ramona Melfry!", 64, 72, GFX.PALETTE.WHITE)
-
-        if debug then
-            print("DEBUG MODE", 90, 80, GFX.PALETTE.RED)
-        end
-
-        if keyp(UI.INPUT.KB_1) then
-            debug = true
-        end
-
-	elseif t >= 3000 and startup then
-		startup = false
-	end
 
 end
 

@@ -81,3 +81,92 @@ function Cards.buildDeck()
 end
 
 
+-- name: data.lua
+-- desc: Constants and other information for hanafuda solitaire
+-- author: Ramona Melfry
+-- script: lua
+
+
+
+    -- CARDS --
+    
+function Cards.CONSTANTS()
+
+    local c = Cards
+
+
+    c.MONTH = {
+
+        JANUARY = 0,
+        FEBRUARY = 1,
+        MARCH = 2,
+        APRIL = 3,
+        MAY = 4,
+        JUNE = 5,
+        JULY = 6,
+        AUGUST = 7,
+        SEPTEMBER = 8,
+        OCTOBER = 9,
+        NOVEMBER = 10,
+        DECEMBER = 11
+
+    }
+
+    c.VALUE = {
+
+        CHAFF = 0,
+        POETRY = 1,
+        ANIMAL = 2,
+        BRIGHT = 3
+
+    }
+
+end
+
+-- name: Hanafuda Solitaire
+-- desc: A single player version of the hanafuda game "koi-koi"
+-- author: Ramona Melfry
+-- script: lua
+
+
+function BOOT()
+
+    Cards.INIT()
+    firstrun = true
+
+end
+
+
+function TIC()
+
+    -- print the deck to the console for testing purposes
+    if firstrun then
+        for _, card in pairs(Cards.Deck) do
+            trace(card.id .. " " .. card.month .. ", " ..  card.value)
+        end
+        firstrun = false
+    end
+end
+
+-- <TILES>
+
+-- </TILES>
+
+-- <WAVES>
+-- 000:00000000ffffffff00000000ffffffff
+-- 001:0123456789abcdeffedcba9876543210
+-- 002:0123456789abcdef0123456789abcdef
+-- </WAVES>
+
+-- <SFX>
+-- 000:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000304000000000
+-- </SFX>
+
+-- <TRACKS>
+-- 000:100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+-- </TRACKS>
+
+-- <PALETTE>
+-- 000:1a1c2c5d275db13e53ef7d57ffcd75a7f07038b76425717929366f3b5dc941a6f673eff7f4f4f494b0c2566c86333c57
+-- </PALETTE>
+

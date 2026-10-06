@@ -6,14 +6,20 @@
 
 function BOOT()
 
-    return
+    Cards.INIT()
+    firstrun = true
 
 end
 
 
 function TIC()
 
-    return
-
+    -- print the deck to the console for testing purposes
+    if firstrun then
+        for _, card in pairs(Cards.Deck) do
+            trace(card.id .. " " .. card.month .. ", " ..  card.value)
+        end
+        firstrun = false
+    end
 end
 

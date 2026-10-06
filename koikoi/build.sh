@@ -1,3 +1,3 @@
 #!/bin/bash
 cd src
-cat main.lua assets.txt > ../koikoi.lua
+cat cards.lua data.lua main.lua assets.txt > ../koikoi.lua
