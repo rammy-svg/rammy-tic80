@@ -42,14 +42,6 @@ Field.LANE_TOP_EDGE = Field.CENTER - Field.HALF_WIDTH
 
 Field.GAME_SPEED_SCALE = 32
 
---this is the zone where cars can change direction
-Field.INTERSECTION = {
-	x_min = Field.CENTER - Field.HALF_WIDTH,
-	x_max = Field.CENTER + Field.HALF_WIDTH,
-	y_min = Field.CENTER - Field.HALF_WIDTH,
-	y_max = Field.CENTER + Field.HALF_WIDTH
-}
-
 -- Traffic
 
 Traffic.TYPE = {
@@ -70,7 +62,7 @@ Input.DIRECTION = {
 
 -- GFX
 
-GFX.ANIM_FRAMERATE_MOD = 4
+GFX.ANIM_FRAMERATE_MOD = 180
 
 GFX.SPRITE = {
 	
@@ -105,9 +97,26 @@ GFX.PALETTE = {
 
 Field.SPAWN = {
 	{ x = Field.LANE_LEFT_EDGE, y = Field.SIZE }, -- UP
-	{ x = 0, y = Field.LANE_TOP_EDGE }, -- RIGHT
-	{ x = Field.CENTER + 1, y = 0 }, -- DOWN
+	{ x = 0 - Field.HALF_WIDTH, y = Field.LANE_TOP_EDGE }, -- RIGHT
+	{ x = Field.CENTER + 1, y = 0 - Field.HALF_WIDTH }, -- DOWN
 	{ x = Field.SIZE, y = Field.CENTER + 1 } -- LEFT
+}
+
+
+--this is the zone where cars can change direction
+Field.INTERSECTION = {
+	x_min = Field.CENTER - Field.HALF_WIDTH,
+	x_max = Field.CENTER + Field.HALF_WIDTH,
+	y_min = Field.CENTER - Field.HALF_WIDTH,
+	y_max = Field.CENTER + Field.HALF_WIDTH
+}
+
+
+Field.ENDPOINTS = {
+	{ x = Field.LANE_LEFT_EDGE, y = 0 }, -- UP
+	{ x = Field.SIZE - Field.HALF_WIDTH, y = Field.LANE_TOP_EDGE }, -- RIGHT
+	{ x = Field.CENTER + 1, y = Field.SIZE - Field.HALF_WIDTH }, -- DOWN
+	{ x = 0, y = Field.CENTER + 1 } -- LEFT
 }
 
 
@@ -198,7 +207,8 @@ function Traffic.spawnNew(car)
 		x = spawn_x,
 		y = spawn_y,
 		dir = dir,
-		changed = false
+		changed = false,
+		thru = false
 	}
 	
 	--then put it into the list of active traffic
@@ -256,41 +266,6 @@ function Traffic.applyTurns(new_dir)
 end
 
 
---function to change the direction of a car when it is at the center of the field
-function Traffic.updateDirections(new_dir)
-
-	--get opposite direction to prevent U-turns
-	local opposite_dir = (new_dir + 1) % 4 + 1
-
-	for i, item in ipairs(Traffic.Active) do
-		local x_pos = item.x
-		local y_pos = item.y
-		local direction = item.dir
-
-		--can only change direction one time per vehicle
-		if item.changed then
-			return
-		end
-
-		--no U-turns allowed
-		if direction == opposite_dir then
-			return
-		end
-
-		--ignore if the new direction is the same as the current direction
-		if new_dir == direction then
-			return
-		end
-		
-		if x_pos >= Field.INTERSECTION.x_min and x_pos <= Field.INTERSECTION.x_max
-			and y_pos >= Field.INTERSECTION.y_min and y_pos <= Field.INTERSECTION.y_max then
-			
-			item.dir = new_dir
-			item.changed = true
-		end
-	end
-end
-
 --function for updating the position of cars on the map
 function Traffic.updatePositions()
 
@@ -305,6 +280,11 @@ function Traffic.updatePositions()
 		item.x = x_pos + move_x
 		item.y = y_pos + move_y
 
+		--check to see if the car has passed through the intersection yet
+		if Traffic.inIntersection(item) then
+			item.thru = true
+		end
+
 	end
 end
 
@@ -317,12 +297,16 @@ function Traffic.cleanup()
 	for i = #Traffic.Active, 1, -1 do
 		local item = Traffic.Active[i]
 
-		if item.x < Field.ORIGIN_X
-			or item.x >= Field.ORIGIN_X + Field.SIZE
-			or item.y < Field.ORIGIN_Y
-			or item.y >= Field.ORIGIN_Y + Field.SIZE then
-
-			table.remove(Traffic.Active, i)
+		--use field size to determine if the car is off-screen
+		if item.x < Field.ORIGIN_X - Field.HALF_WIDTH or 
+			item.x > Field.ORIGIN_X + Field.SIZE or 
+			item.y < Field.ORIGIN_Y - Field.HALF_WIDTH or 
+			item.y > Field.ORIGIN_Y + Field.SIZE then
+			
+			--check to see if the car has passed through the intersection before removing it
+			if item.thru then
+				table.remove(Traffic.Active, i)
+			end
 		end
 	end
 end
@@ -381,6 +365,38 @@ Field.Lanes = {
 }
 
 
+--handle cars that are at the end of the lane
+function Field.updateLanes()
+
+	for i, item in ipairs(Traffic.Active) do
+		local endpoint = Field.ENDPOINTS[item.dir]
+		if item.x == endpoint.x and item.y == endpoint.y then
+			--update the lane stats
+			local lane = Field.Lanes[item.dir]
+			
+			--special cars always clear the lane
+			if item.color == Traffic.TYPE.SPECIAL then
+				lane.type = nil
+				lane.stored = 0
+			--then check to see if the lane is already defined
+			elseif Field.Lanes[item.dir].type == nil then
+				Field.Lanes[item.dir].type = item.color
+				lane.stored = lane.stored + 1
+				--remove the car from the active list
+				table.remove(Traffic.Active, i)
+			elseif Field.Lanes[item.dir].type == item.color then
+				lane.stored = lane.stored + 1
+				--remove the car from the active list
+				table.remove(Traffic.Active, i)
+			else
+				--wrong color, reset the lane
+				lane.type = nil
+				lane.stored = 0
+			end
+
+		end
+	end
+end
 
 	
 	
@@ -465,15 +481,32 @@ end
 	
 --declare variables
 GFX.selector_length = 0
-
+GFX.playing = false
 
 --animate the special cars
-function GFX.drawSpecial(x_pos, y_pos, rotation)
+function GFX.drawSpecial(x_pos, y_pos, rotation, thru)
 	local t = time()
 	local frame_count = 6
+	--modulate the frame rate to slow down the animation
+	t = math.floor(t / GFX.ANIM_FRAMERATE_MOD)
 	local frame = t % frame_count
 
 	spr(GFX.SPRITE.SPECIAL + frame, x_pos, y_pos, 0, 1, 0, rotation, 1, 1)
+
+
+			if frame <= 2 then
+				sfx(00, "A-6", 2, 0, 7, 0)
+			elseif frame > 2 then
+				sfx(00, "E-6", 2, 0, 7, 0)
+			end
+end
+
+--mask the right edge of the playfield
+function GFX.maskEdge()
+	local offset = 4
+	rect(Field.SIZE, Field.LANE_TOP_EDGE, Field.HALF_WIDTH, Field.LANE_WIDTH + offset, GFX.PALETTE.BG)
+	--fix the drop shadow
+	rect(Field.SIZE, Field.LANE_TOP_EDGE + offset, offset, Field.LANE_WIDTH, GFX.PALETTE.ACCENT2)
 end
 
 --draw the gameplay field
@@ -493,6 +526,29 @@ function GFX.drawField()
 	rect(origin_x + Field.LANE_LEFT_EDGE, origin_y, Field.LANE_WIDTH, Field.SIZE, color.FG)
 
 end
+
+
+--draw stored cars in the lanes
+function GFX.drawStored()
+	for i, lane in ipairs(Field.Lanes) do
+		--check to see if there are any cars stored in this lane
+		if lane.stored > 0 then
+			--draw stored cars at the endpoint with offset
+			for j=lane.stored, 1, -1 do
+				--draw the stored cars in a stack
+				local endpoint = Field.ENDPOINTS[i]
+				local type = lane.type
+				--shift the sprite using Traffic.DIRECTION to get the correct offset
+				local x_pos = endpoint.x - (Traffic.DIRECTION[i].x * j * 3)
+				local y_pos = endpoint.y - (Traffic.DIRECTION[i].y * j * 3)
+				--TIC 80 expects rotation val from 0-3, 
+				--we have 1-4:
+				local rotation = i - 1
+				spr(type, x_pos, y_pos, 0, 1, 0, rotation, 1, 1)
+			end
+		end
+	end
+end
 	
 	
 -- draw traffic
@@ -508,7 +564,7 @@ function GFX.drawTraffic()
 
 		--handle special cars first
 		if item.color == Traffic.TYPE.SPECIAL then
-			GFX.drawSpecial(x_pos, y_pos, rotation)
+			GFX.drawSpecial(x_pos, y_pos, rotation, item.thru)
 		else
 			spr(color, x_pos, y_pos, 0, 1, 0, rotation, 1, 1)
 		end
@@ -584,6 +640,7 @@ end
 
 
 
+
 	-- DEBUG --
 	
 	
@@ -603,7 +660,7 @@ function Debug.printActive()
 
 	if #Traffic.Active > 0 then
 		for i, car in ipairs(Traffic.Active) do
-			print(car.color .. " " .. car.dir .. " ( " .. car.x .. ", " .. car.y .. " )" .. " " .. (car.changed and "1" or "0"), 140, 64+(8*i), GFX.PALETTE.FG)
+			print(car.color .. " " .. car.dir .. " ( " .. car.x .. ", " .. car.y .. " )" .. " " .. (car.changed and "1" or "0") .. " " .. (car.thru and "1" or "0"), 140, 64+(8*i), GFX.PALETTE.FG)
 		end
 	else
 	
@@ -645,14 +702,12 @@ function TIC()
 		end
 
 		Traffic.updatePositions()
+		Field.updateLanes()
 		Traffic.cleanup()
 	end
-
-	Debug.printCoords()
-	Debug.printActive()
-	Debug.printQueue()
 	
-	print(Field.queue_timer, 140, 128, GFX.PALETTE.FG)
+	--print(Field.queue_timer, 140, 128, GFX.PALETTE.FG)
+
 
 	GFX.drawField()
 	
@@ -668,9 +723,15 @@ function TIC()
 
 	if #Traffic.Active > 0 then
 		GFX.drawTraffic()
+		GFX.maskEdge()
 	end
+
+	GFX.drawStored()
 	
-	
+	--Debug.printCoords()
+	Debug.printActive()
+	Debug.printQueue()
+
 end
 -- <TILES>
 -- 000:20000020c20002c0cc202cc0ccc2ccc0ccccccc0000000000000000000000000
@@ -683,6 +744,7 @@ end
 -- 007:0000f000000fcf0000fcdcf000fd2df000f2f2f000ff0ff000f000f000000000
 -- 008:0000f000000fdf0000fd2df000f2c2f000fcfcf000ff0ff000f000f000000000
 -- 009:0000f000000f2f0000f2c2f000fcdcf000fdfdf000ff0ff000f000f000000000
+-- 255:2000000202000020002002000002200000022000002002000200002020000002
 -- </TILES>
 
 -- <WAVES>
@@ -692,7 +754,7 @@ end
 -- </WAVES>
 
 -- <SFX>
--- 000:000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000304000000000
+-- 000:010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100010001000100304000000000
 -- </SFX>
 
 -- <TRACKS>
