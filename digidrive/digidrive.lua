@@ -21,9 +21,35 @@ Debug = {}
 
 
 
+
+
+
+
 	-- CONSTANTS --
 	
-	
+
+-- Field
+Field.ORIGIN_X = 0
+Field.ORIGIN_Y = 0
+Field.SIZE = 136
+
+Field.CENTER = Field.SIZE / 2
+Field.LANE_WIDTH = 17
+Field.HALF_WIDTH = 8
+
+Field.LANE_LEFT_EDGE = Field.CENTER - Field.HALF_WIDTH
+Field.LANE_TOP_EDGE = Field.CENTER - Field.HALF_WIDTH
+
+Field.GAME_SPEED_SCALE = 32
+
+--this is the zone where cars can change direction
+Field.INTERSECTION = {
+	x_min = Field.CENTER - Field.HALF_WIDTH,
+	x_max = Field.CENTER + Field.HALF_WIDTH,
+	y_min = Field.CENTER - Field.HALF_WIDTH,
+	y_max = Field.CENTER + Field.HALF_WIDTH
+}
+
 -- Traffic
 
 Traffic.TYPE = {
@@ -44,7 +70,7 @@ Input.DIRECTION = {
 
 -- GFX
 
-GFX.ANIM_FRAMERATE_MOD = 2
+GFX.ANIM_FRAMERATE_MOD = 4
 
 GFX.SPRITE = {
 	
@@ -66,7 +92,10 @@ GFX.PALETTE = {
 	ACCENT2 = 15
 }
 
-GFX.LANE_WIDTH = 17
+
+
+
+
 
 	-- OTHER LOOKUPS --
 
@@ -75,10 +104,18 @@ GFX.LANE_WIDTH = 17
 -- Field
 
 Field.SPAWN = {
-	{ x=64-8, y=136 },
-	{ x=0, y=64-8 },
-	{ x=64, y=0 },
-	{ x=136, y=64 }
+	{ x = Field.LANE_LEFT_EDGE, y = Field.SIZE }, -- UP
+	{ x = 0, y = Field.LANE_TOP_EDGE }, -- RIGHT
+	{ x = Field.CENTER + 1, y = 0 }, -- DOWN
+	{ x = Field.SIZE, y = Field.CENTER + 1 } -- LEFT
+}
+
+
+Field.LANE = {
+	{ axis = "x", value = Field.LANE_LEFT_EDGE },
+	{ axis = "y", value = Field.LANE_LEFT_EDGE },
+	{ axis = "x", value = Field.LANE_LEFT_EDGE + ( Field.LANE_WIDTH - 8 ) }, 
+	{ axis = "y", value = Field.LANE_LEFT_EDGE + ( Field.LANE_WIDTH - 8 ) }
 }
 
 
@@ -120,7 +157,13 @@ GFX.SELECTOR = {
 	}
 }
 
+
+
+
+
 		-- TRAFFIC --
+
+
 	
 --define list of active traffic
 Traffic.Active = { }
@@ -143,8 +186,10 @@ function Traffic.spawnNew(car)
 
 	local color = car.color
 	local dir = car.dir
-	local spawn_x = Field.SPAWN[car.dir].x
-	local spawn_y = Field.SPAWN[car.dir].y
+	local spawn = Field.SPAWN[car.dir]
+	
+	local spawn_x = Field.ORIGIN_X + spawn.x
+	local spawn_y = Field.ORIGIN_Y + spawn.y
 
 	--put everything into a list to put into 
 	--the list of active traffic
@@ -152,13 +197,99 @@ function Traffic.spawnNew(car)
 		color = color,
 		x = spawn_x,
 		y = spawn_y,
-		dir = dir
+		dir = dir,
+		changed = false
 	}
 	
 	--then put it into the list of active traffic
 	table.insert(Traffic.Active, 1, item)
 end
 
+
+--check to see if the car is in the intersection
+function Traffic.inIntersection(item)
+
+    return item.x >= Field.INTERSECTION.x_min and item.x <= Field.INTERSECTION.x_max
+       and item.y >= Field.INTERSECTION.y_min and item.y <= Field.INTERSECTION.y_max
+end
+
+-- check if the car can turn on this frame
+function Traffic.canTurn(item, new_dir)
+
+    if item.changed then 
+		return false 
+	end
+    
+	--ignore direction change if car is already moving in that direction
+	if item.dir == new_dir then 
+		return false
+	end
+    
+	--no U-turns allowed
+	if (item.dir + 1) % 4 + 1 == new_dir then 
+		return false 
+	end
+    
+	--can't turn unless in intersection
+	if not Traffic.inIntersection(item) then 
+		return false 
+	end
+
+    --car must already be in the destination lane before it can turn
+    local lane = Field.LANE[new_dir]
+    return item[lane.axis] == lane.value
+end
+
+-- new_dir is the direction the player is holding (or nil)
+function Traffic.applyTurns(new_dir)
+    if not new_dir then 
+		return
+	end
+    
+	for _, item in ipairs(Traffic.Active) do
+    
+		if Traffic.canTurn(item, new_dir) then
+    		item.dir = new_dir
+            item.changed = true
+        end
+    end
+end
+
+
+--function to change the direction of a car when it is at the center of the field
+function Traffic.updateDirections(new_dir)
+
+	--get opposite direction to prevent U-turns
+	local opposite_dir = (new_dir + 1) % 4 + 1
+
+	for i, item in ipairs(Traffic.Active) do
+		local x_pos = item.x
+		local y_pos = item.y
+		local direction = item.dir
+
+		--can only change direction one time per vehicle
+		if item.changed then
+			return
+		end
+
+		--no U-turns allowed
+		if direction == opposite_dir then
+			return
+		end
+
+		--ignore if the new direction is the same as the current direction
+		if new_dir == direction then
+			return
+		end
+		
+		if x_pos >= Field.INTERSECTION.x_min and x_pos <= Field.INTERSECTION.x_max
+			and y_pos >= Field.INTERSECTION.y_min and y_pos <= Field.INTERSECTION.y_max then
+			
+			item.dir = new_dir
+			item.changed = true
+		end
+	end
+end
 
 --function for updating the position of cars on the map
 function Traffic.updatePositions()
@@ -170,33 +301,42 @@ function Traffic.updatePositions()
 		local move_x = Traffic.DIRECTION[dir].x
 		local move_y = Traffic.DIRECTION[dir].y
 		
+		--update positions
 		item.x = x_pos + move_x
 		item.y = y_pos + move_y
+
 	end
 end
+
+
 
 
 --clean up traffic that is not on-screen
 function Traffic.cleanup()
-	
-	for i, item in ipairs(Traffic.Active) do
-		local x_pos = item.x
-		local y_pos = item.y
-		
-		if x_pos < 0 
-			or x_pos > 136 
-			or y_pos < 0 
-			or y_pos > 136 then
-			
-			table.remove(Traffic.Active, i)			
+
+	for i = #Traffic.Active, 1, -1 do
+		local item = Traffic.Active[i]
+
+		if item.x < Field.ORIGIN_X
+			or item.x >= Field.ORIGIN_X + Field.SIZE
+			or item.y < Field.ORIGIN_Y
+			or item.y >= Field.ORIGIN_Y + Field.SIZE then
+
+			table.remove(Traffic.Active, i)
 		end
 	end
 end
 
+
+
+
 	-- FIELD --
+
 	
 --define variables
-Field.gameSpeed = 32
+Field.game_speed = 0.25
+Field.queue_timer_max = 100
+Field.queue_timer = 0
 
 
 --define the queue of actions
@@ -208,7 +348,7 @@ Field.Queue = { }
 Field.Lanes = {
 	{ 
 		type = nil,
-		stacked = 0,
+		stored = 0,
 		fuel = 0,
 		decay_rate = 0.5,
 		
@@ -216,7 +356,7 @@ Field.Lanes = {
 	},
 	{
 		type = nil,
-		stacked = 0,
+		stored = 0,
 		fuel = 0,
 		decay_rate = 0.5,
 		
@@ -224,7 +364,7 @@ Field.Lanes = {
 	},
 		{
 		type = nil,
-		stacked = 0,
+		stored = 0,
 		fuel = 0,
 		decay_rate = 0.5,
 		
@@ -232,13 +372,16 @@ Field.Lanes = {
 	},
 		{
 		type = nil,
-		stacked = 0,
+		stored = 0,
 		fuel = 0,
 		decay_rate = 0.5,
 		
 		queue = { }
 	}
 }
+
+
+
 	
 	
 --adds a new car to the play queue
@@ -259,29 +402,62 @@ function Field.getNextQueue()
 end
 
 
-
 --advance the queue one step
-function Field.advanceQueue(speed)
-
-	local t = math.floor(time())
-	
-	if t % speed == 0 and #Field.Queue >= 1 then
+function Field.advanceQueue()
 		local car = Field.getNextQueue()
 		
 		Traffic.spawnNew(car)
-	end
 end
 
-	
+
+
+--new queue manager (using timer instead of modulo)
+function Field.queueMan()
+
+	--check to see if the queue is full
+	if #Field.Queue < 5 then
+		--get a random color and direction (implement difficulty scaled weighting later)
+		local color = math.random(1, 4)
+		local dir = math.random(1, 4)
+		Field.addCar(color, dir)
+	end
+
+	--check if we even need to run the manager this step
+	if Field.queue_timer < Field.queue_timer_max then
+		Field.queue_timer = Field.queue_timer + 1
+	elseif Field.queue_timer >= Field.queue_timer_max then
+		--run the next step
+		Field.advanceQueue()
+		Field.queue_timer = 0
+	end
+
+end
 
 
 	-- INPUT --
-	
-	
---handles player inputs in game
-function Input.inGame()
 
+
+-- initialize variables
+Input.held = nil
+
+
+
+--handle player inputs in-game
+function Input.handleInputs()
+
+	if btn(0) then
+		Input.held = Input.DIRECTION.UP
+	elseif btn(1) then
+		Input.held = Input.DIRECTION.DOWN
+	elseif btn(2) then
+		Input.held = Input.DIRECTION.LEFT
+	elseif btn(3) then
+		Input.held = Input.DIRECTION.RIGHT
+	else
+		Input.held = nil
+	end
 end
+
 
 
 
@@ -289,24 +465,34 @@ end
 	
 --declare variables
 GFX.selector_length = 0
-	
+
+
+--animate the special cars
+function GFX.drawSpecial(x_pos, y_pos, rotation)
+	local t = time()
+	local frame_count = 6
+	local frame = t % frame_count
+
+	spr(GFX.SPRITE.SPECIAL + frame, x_pos, y_pos, 0, 1, 0, rotation, 1, 1)
+end
 
 --draw the gameplay field
 
-function GFX.drawField(x,y)
-
+function GFX.drawField()
+	local origin_x = Field.ORIGIN_X
+	local origin_y = Field.ORIGIN_Y
 	local color = GFX.PALETTE
 	local offset = 4
-	
-	--draw the drop shadow
-	rect(x+offset, y+56+offset, 136, GFX.LANE_WIDTH, color.ACCENT2)
-	rect(x+56+offset, y+offset, GFX.LANE_WIDTH, 136, color.ACCENT2)
-	
-	--draw the main game field
-	rect(x, y+56, 136, GFX.LANE_WIDTH, color.FG)
-	rect(x+56, y, GFX.LANE_WIDTH, 136, color.FG)    
-	
-end 
+
+	-- shadow
+	rect(origin_x + offset, origin_y + Field.LANE_TOP_EDGE + offset, Field.SIZE, Field.LANE_WIDTH, color.ACCENT2)
+	rect(origin_x + Field.LANE_LEFT_EDGE + offset, origin_y + offset, Field.LANE_WIDTH, Field.SIZE, color.ACCENT2)
+
+	-- main playfield
+	rect(origin_x, origin_y + Field.LANE_TOP_EDGE, Field.SIZE, Field.LANE_WIDTH, color.FG)
+	rect(origin_x + Field.LANE_LEFT_EDGE, origin_y, Field.LANE_WIDTH, Field.SIZE, color.FG)
+
+end
 	
 	
 -- draw traffic
@@ -318,8 +504,14 @@ function GFX.drawTraffic()
 		local y_pos = item.y
 		--TIC 80 expects rotation val from 0-3, 
 		--we have 1-4:
-		local rot = item.dir - 1 
-		spr(color, x_pos, y_pos, 0, 1, 0, rot, 1, 1)
+		local rotation = item.dir - 1
+
+		--handle special cars first
+		if item.color == Traffic.TYPE.SPECIAL then
+			GFX.drawSpecial(x_pos, y_pos, rotation)
+		else
+			spr(color, x_pos, y_pos, 0, 1, 0, rotation, 1, 1)
+		end
 	end
 end
 
@@ -328,9 +520,11 @@ end
 --draw a line along the lane the player has selected
 function GFX.drawSelectedLane(dir, origin_x, origin_y, total_length)
 
-	local length = GFX.selector_length
 	local t = math.floor(time())
-	local scale = 16
+	local scale = 8
+	
+	GFX.selector_length = math.min(GFX.selector_length + scale, total_length)
+	local length = GFX.selector_length
 		 
 	--check to see if we can increase length
 	if GFX.selector_length < total_length then
@@ -350,15 +544,20 @@ function GFX.drawSelectedLane(dir, origin_x, origin_y, total_length)
 	local endpoint_y = origin_y + len_y
 	
 	--draw ornaments
+
+	--inner line outline
 	local ornament1_offset_x = GFX.SELECTOR[dir].accent_x
 	local ornament1_offset_y = GFX.SELECTOR[dir].accent_y
 	local ornament2_offset_x = - (GFX.SELECTOR[dir].accent_x)
 	local ornament2_offset_y = - (GFX.SELECTOR[dir].accent_y)
 
-	local ornament3_offset_x = 3*ornament1_offset_x
-	local ornament3_offset_y = 3*ornament1_offset_y
-	local ornament4_offset_x = 3*ornament2_offset_x
-	local ornament4_offset_y = 3*ornament2_offset_y
+	--outer lines
+	local selector_width = 3
+
+	local ornament3_offset_x = selector_width * ornament1_offset_x
+	local ornament3_offset_y = selector_width * ornament1_offset_y
+	local ornament4_offset_x = selector_width * ornament2_offset_x
+	local ornament4_offset_y = selector_width * ornament2_offset_y
 
 	line(origin_x - ornament1_offset_x, origin_y - ornament1_offset_y, endpoint_x - ornament1_offset_x, endpoint_y - ornament1_offset_y, GFX.PALETTE.OUTLINE)
  	line(origin_x - ornament2_offset_x, origin_y - ornament2_offset_y, endpoint_x - ornament2_offset_x, endpoint_y - ornament2_offset_y, GFX.PALETTE.OUTLINE)
@@ -366,8 +565,7 @@ function GFX.drawSelectedLane(dir, origin_x, origin_y, total_length)
 	line(origin_x - ornament3_offset_x, origin_y - ornament3_offset_y, endpoint_x - ornament3_offset_x, endpoint_y - ornament3_offset_y, GFX.PALETTE.ACCENT1)
  	line(origin_x - ornament4_offset_x, origin_y - ornament4_offset_y, endpoint_x - ornament4_offset_x, endpoint_y - ornament4_offset_y, GFX.PALETTE.ACCENT1)
 	
-	
-	--draw the starting point of the line
+	--starting point of the line
 	local offset = 3
 	local flip = GFX.SELECTOR[dir].flip
 	local x_pos = origin_x - offset
@@ -405,7 +603,7 @@ function Debug.printActive()
 
 	if #Traffic.Active > 0 then
 		for i, car in ipairs(Traffic.Active) do
-			print(car.color .. " " .. car.x .. " " .. car.y .. " " .. car.dir, 140, 64+(8*i), GFX.PALETTE.FG)
+			print(car.color .. " " .. car.dir .. " ( " .. car.x .. ", " .. car.y .. " )" .. " " .. (car.changed and "1" or "0"), 140, 64+(8*i), GFX.PALETTE.FG)
 		end
 	else
 	
@@ -436,49 +634,55 @@ end
 function TIC()
 
 	cls(GFX.PALETTE.BG)
+
+	Input.handleInputs()
 	
-	Field.advanceQueue(Field.gameSpeed)
+	Field.queueMan()
 	
 	if #Traffic.Active > 0 then
-		Traffic.cleanup()
+		if Input.held then
+			Traffic.applyTurns(Input.held)
+		end
+
 		Traffic.updatePositions()
+		Traffic.cleanup()
 	end
 
 	Debug.printCoords()
 	Debug.printActive()
 	Debug.printQueue()
 	
+	print(Field.queue_timer, 140, 128, GFX.PALETTE.FG)
 
-	GFX.drawField(4,4)
+	GFX.drawField()
 	
+	local cx = Field.ORIGIN_X + Field.CENTER
+	local cy = Field.ORIGIN_Y + Field.CENTER
+	local len = Field.CENTER  -- distance from center to edge, 68
+
+    if Input.held then
+        GFX.drawSelectedLane(Input.held, cx, cy, len)
+    else
+        GFX.selector_length = 0
+    end
+
 	if #Traffic.Active > 0 then
 		GFX.drawTraffic()
 	end
 	
-	local button_pressed = false
-	
-	if btn(0) then
-		--Field.addCar(Traffic.TYPE.CONE, Input.DIRECTION.UP)
-		GFX.drawSelectedLane(Input.DIRECTION.UP, 64, 64, 64)
-	elseif btn(1) then
-		--Field.addCar(Traffic.TYPE.ROUND, Input.DIRECTION.DOWN)
-		GFX.drawSelectedLane(Input.DIRECTION.DOWN, 64, 64, 64)	
-	elseif btn(2) then
-		--Field.addCar(Traffic.TYPE.SQUARE, Input.DIRECTION.RIGHT)
-		GFX.drawSelectedLane(Input.DIRECTION.LEFT, 64, 64, 64)
-	elseif btn(3) then
-		--Field.addCar(Traffic.TYPE.CONE, Input.DIRECTION.LEFT)
-		GFX.drawSelectedLane(Input.DIRECTION.RIGHT, 64, 64, 64)
-	else
-		GFX.selector_length = 0
-	end
 	
 end
 -- <TILES>
 -- 000:20000020c20002c0cc202cc0ccc2ccc0ccccccc0000000000000000000000000
 -- 001:0000d0000000d000000dfd00000dfd0000dfffd000dfdfd000dd0dd000000000
--- 002:000ddd0000d222d000d222d000d222d000d222d000ddddd000d000d000000000
--- 003:000fff00000fdf0000fdddf000fdddf000fdddf000fdfdf000fffff000000000
+-- 002:000ddd0000dd2dd000d222d000d222d000d2d2d000ddddd000d000d000000000
+-- 003:000fff00000fdf0000fdddf000fdddf000fdfdf000fffff00000000000000000
+-- 004:0000d000000dcd0000dcfcd000df2fd000d2d2d000dd0dd000d000d000000000
+-- 005:0000d000000dfd0000df2fd000d2c2d000dcdcd000dd0dd000d000d000000000
+-- 006:0000d000000d2d0000d2c2d000dcfcd000dfdfd000dd0dd000d000d000000000
+-- 007:0000f000000fcf0000fcdcf000fd2df000f2f2f000ff0ff000f000f000000000
+-- 008:0000f000000fdf0000fd2df000f2c2f000fcfcf000ff0ff000f000f000000000
+-- 009:0000f000000f2f0000f2c2f000fcdcf000fdfdf000ff0ff000f000f000000000
 -- </TILES>
 
 -- <WAVES>
