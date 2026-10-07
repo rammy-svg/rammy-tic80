@@ -76,14 +76,32 @@ GFX.SPRITE = {
 	SELECTOR_ORIGIN = 0
 }
 
+
 GFX.PALETTE = {
-	FG = 12,
-	BG = 0,
-	OUTLINE = 13,
-	ACCENT1 = 2,
-	ACCENT2 = 15
+	TRANSPARENT = 0,
+	TRUE_BLACK = 1,
+	TRUE_WHITE = 2,
+
+	BLACK = 15,
+	GRAY = 14,
+	LT_GRAY = 13,
+	WHITE = 12,
+	
+	ACCENT_1 = 7,
+	ACCENT_2 = 6,
+	ACCENT_3 = 5,
+	ACCENT_4 = 4
 }
 
+
+GFX.COLOR = {
+	--values that the game actually uses (try to use these instead of referencing colors directly)
+	FG = GFX.PALETTE.WHITE,
+	BG = GFX.PALETTE.BLACK,
+	OUTLINE = GFX.PALETTE.LT_GRAY,
+	ACCENT1 = GFX.PALETTE.ACCENT_1,
+	ACCENT2 = GFX.PALETTE.GRAY
+}
 
 
 
@@ -504,9 +522,9 @@ end
 --mask the right edge of the playfield
 function GFX.maskEdge()
 	local offset = 4
-	rect(Field.SIZE, Field.LANE_TOP_EDGE, Field.HALF_WIDTH, Field.LANE_WIDTH + offset, GFX.PALETTE.BG)
+	rect(Field.SIZE, Field.LANE_TOP_EDGE, Field.HALF_WIDTH, Field.LANE_WIDTH + offset, GFX.COLOR.BG)
 	--fix the drop shadow
-	rect(Field.SIZE, Field.LANE_TOP_EDGE + offset, offset, Field.LANE_WIDTH, GFX.PALETTE.ACCENT2)
+	rect(Field.SIZE, Field.LANE_TOP_EDGE + offset, offset, Field.LANE_WIDTH, GFX.COLOR.ACCENT2)
 end
 
 --draw the gameplay field
@@ -514,7 +532,7 @@ end
 function GFX.drawField()
 	local origin_x = Field.ORIGIN_X
 	local origin_y = Field.ORIGIN_Y
-	local color = GFX.PALETTE
+	local color = GFX.COLOR
 	local offset = 4
 
 	-- shadow
@@ -538,9 +556,9 @@ function GFX.drawStored()
 				--draw the stored cars in a stack
 				local endpoint = Field.ENDPOINTS[i]
 				local type = lane.type
-				--shift the sprite using Traffic.DIRECTION to get the correct offset
-				local x_pos = endpoint.x - (Traffic.DIRECTION[i].x * j * 3)
-				local y_pos = endpoint.y - (Traffic.DIRECTION[i].y * j * 3)
+				--shift the sprite using Traffic.DIRECTION
+				local x_pos = endpoint.x - (Traffic.DIRECTION[i].x * (j-1) * 3)
+				local y_pos = endpoint.y - (Traffic.DIRECTION[i].y * (j-1) * 3)
 				--TIC 80 expects rotation val from 0-3, 
 				--we have 1-4:
 				local rotation = i - 1
@@ -615,11 +633,11 @@ function GFX.drawSelectedLane(dir, origin_x, origin_y, total_length)
 	local ornament4_offset_x = selector_width * ornament2_offset_x
 	local ornament4_offset_y = selector_width * ornament2_offset_y
 
-	line(origin_x - ornament1_offset_x, origin_y - ornament1_offset_y, endpoint_x - ornament1_offset_x, endpoint_y - ornament1_offset_y, GFX.PALETTE.OUTLINE)
- 	line(origin_x - ornament2_offset_x, origin_y - ornament2_offset_y, endpoint_x - ornament2_offset_x, endpoint_y - ornament2_offset_y, GFX.PALETTE.OUTLINE)
+	line(origin_x - ornament1_offset_x, origin_y - ornament1_offset_y, endpoint_x - ornament1_offset_x, endpoint_y - ornament1_offset_y, GFX.COLOR.OUTLINE)
+ 	line(origin_x - ornament2_offset_x, origin_y - ornament2_offset_y, endpoint_x - ornament2_offset_x, endpoint_y - ornament2_offset_y, GFX.COLOR.OUTLINE)
 	
-	line(origin_x - ornament3_offset_x, origin_y - ornament3_offset_y, endpoint_x - ornament3_offset_x, endpoint_y - ornament3_offset_y, GFX.PALETTE.ACCENT1)
- 	line(origin_x - ornament4_offset_x, origin_y - ornament4_offset_y, endpoint_x - ornament4_offset_x, endpoint_y - ornament4_offset_y, GFX.PALETTE.ACCENT1)
+	line(origin_x - ornament3_offset_x, origin_y - ornament3_offset_y, endpoint_x - ornament3_offset_x, endpoint_y - ornament3_offset_y, GFX.COLOR.ACCENT1)
+ 	line(origin_x - ornament4_offset_x, origin_y - ornament4_offset_y, endpoint_x - ornament4_offset_x, endpoint_y - ornament4_offset_y, GFX.COLOR.ACCENT1)
 	
 	--starting point of the line
 	local offset = 3
@@ -634,7 +652,7 @@ function GFX.drawSelectedLane(dir, origin_x, origin_y, total_length)
 	--actually draw the line
 	origin_x = origin_x + GFX.SELECTOR[dir].x_offset
 	origin_y = origin_y + GFX.SELECTOR[dir].y_offset
-	line(origin_x, origin_y, endpoint_x, endpoint_y, GFX.PALETTE.ACCENT1)
+	line(origin_x, origin_y, endpoint_x, endpoint_y, GFX.COLOR.ACCENT1)
 			
 end
 
@@ -651,7 +669,7 @@ function Debug.printCoords()
 
 	local mouse_x, mouse_y = mouse()
 	
-	print(mouse_x .. ", " .. mouse_y, GFX.PALETTE.FG)
+	print(mouse_x .. ", " .. mouse_y, GFX.COLOR.FG)
 end
 
 
@@ -660,11 +678,11 @@ function Debug.printActive()
 
 	if #Traffic.Active > 0 then
 		for i, car in ipairs(Traffic.Active) do
-			print(car.color .. " " .. car.dir .. " ( " .. car.x .. ", " .. car.y .. " )" .. " " .. (car.changed and "1" or "0") .. " " .. (car.thru and "1" or "0"), 140, 64+(8*i), GFX.PALETTE.FG)
+			print(car.color .. " " .. car.dir .. " ( " .. car.x .. ", " .. car.y .. " )" .. " " .. (car.changed and "1" or "0") .. " " .. (car.thru and "1" or "0"), 140, 64+(8*i), GFX.COLOR.FG)
 		end
 	else
 	
-		print("no active traffic", 140, 64, GFX.PALETTE.ACCENT2)
+		print("no active traffic", 140, 64, GFX.COLOR.ACCENT2)
 	end
 end
 
@@ -674,11 +692,11 @@ function Debug.printQueue()
 
 	if #Field.Queue > 0 then
 		for i, car in ipairs(Field.Queue) do
-			print(car.color .. " " .. car.dir, 140, 0+(8*i), GFX.PALETTE.FG)
+			print(car.color .. " " .. car.dir, 140, 0+(8*i), GFX.COLOR.FG)
 		end
 	else
 	
-		print("nothing in queue", 140, 0, GFX.PALETTE.ACCENT2)
+		print("nothing in queue", 140, 0, GFX.COLOR.ACCENT2)
 	end
 end
 
@@ -690,7 +708,7 @@ end
 
 function TIC()
 
-	cls(GFX.PALETTE.BG)
+	cls(GFX.COLOR.BG)
 
 	Input.handleInputs()
 	
@@ -705,8 +723,7 @@ function TIC()
 		Field.updateLanes()
 		Traffic.cleanup()
 	end
-	
-	--print(Field.queue_timer, 140, 128, GFX.PALETTE.FG)
+
 
 
 	GFX.drawField()
@@ -734,16 +751,16 @@ function TIC()
 
 end
 -- <TILES>
--- 000:20000020c20002c0cc202cc0ccc2ccc0ccccccc0000000000000000000000000
+-- 000:70000070c70007c0cc707cc0ccc7ccc0ccccccc0000000000000000000000000
 -- 001:0000d0000000d000000dfd00000dfd0000dfffd000dfdfd000dd0dd000000000
--- 002:000ddd0000dd2dd000d222d000d222d000d2d2d000ddddd000d000d000000000
--- 003:000fff00000fdf0000fdddf000fdddf000fdfdf000fffff00000000000000000
--- 004:0000d000000dcd0000dcfcd000df2fd000d2d2d000dd0dd000d000d000000000
--- 005:0000d000000dfd0000df2fd000d2c2d000dcdcd000dd0dd000d000d000000000
--- 006:0000d000000d2d0000d2c2d000dcfcd000dfdfd000dd0dd000d000d000000000
--- 007:0000f000000fcf0000fcdcf000fd2df000f2f2f000ff0ff000f000f000000000
--- 008:0000f000000fdf0000fd2df000f2c2f000fcfcf000ff0ff000f000f000000000
--- 009:0000f000000f2f0000f2c2f000fcdcf000fdfdf000ff0ff000f000f000000000
+-- 002:000ddd0000dd7dd000d777d000d777d000d7d7d000ddddd000d000d000000000
+-- 003:000fff00000fcf0000fcccf000fcccf000fcfcf000fffff00000000000000000
+-- 004:0000d000000d7d0000d7e7d000de2ed000d2d2d000dd0dd000d000d000000000
+-- 005:0000d000000ded0000de2ed000d272d000d7d7d000dd0dd000d000d000000000
+-- 006:0000d000000d2d0000d272d000d7e7d000deded000dd0dd000d000d000000000
+-- 007:0000f000000f7f0000f7e7f000fe2ef000f2f2f000ff0ff000f000f000000000
+-- 008:0000f000000fef0000fe2ef000f272f000f7f7f000ff0ff000f000f000000000
+-- 009:0000f000000f2f0000f27cf000f7e7f000fefef000ff0ff000f000f000000000
 -- 255:2000000202000020002002000002200000022000002002000200002020000002
 -- </TILES>
 
@@ -762,6 +779,6 @@ end
 -- </TRACKS>
 
 -- <PALETTE>
--- 000:1a1c2c5d275db13e53ef7d57ffcd75a7f07038b76425717929366f3b5dc941a6f673eff7f4f4f4d0d0d0566c86333c57
+-- 000:1a1c2c00000dffffff0000009c5461b13e53c52a46d7183b000000000000000000000000f4f4f4d0d0d0566c86333c57
 -- </PALETTE>
 
