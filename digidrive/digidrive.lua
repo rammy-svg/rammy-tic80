@@ -265,7 +265,8 @@ function Traffic.spawnNew(car)
 		y = spawn_y,
 		dir = dir,
 		changed = false,
-		thru = false
+		thru = false,
+		active = true
 	}
 	
 	--then put it into the list of active traffic
@@ -380,60 +381,53 @@ Field.queue_timer_max = 100
 Field.queue_timer = 0
 
 
---define the queue of actions
+--define tables
 Field.Queue = { }
+Field.Lanes = { }
 
+
+--helper functions
+function Field.getCoords(point)
+	return { x = point.x, y = point.y }
+end
 
 --define the game field lanes
+function Field.buildLanes()
+	
+	Field.Lanes = { }
 
-Field.Lanes = {
-	{ 
-		type = nil,
-		stored = 0,
-		level = 0,
-		fuel = 0,
-		decay_rate = 0.5,
+	for i=1, 4, 1 do
+		local lane = { 
+			dir = i,
+			type = nil,
+			stored = 0,
+			level = 0,
+			fuel = 0,
+			decay_rate = 0.5,
+			
+			queue = { },
 		
-		queue = { }
-	},
-	{
-		type = nil,
-		stored = 0,
-		level = 0,
-		fuel = 0,
-		decay_rate = 0.5,
-		
-		queue = { }
-	},
-		{
-		type = nil,
-		stored = 0,
-		level = 0,
-		fuel = 0,
-		decay_rate = 0.5,
-		
-		queue = { }
-	},
-		{
-		type = nil,
-		stored = 0,
-		level = 0,
-		fuel = 0,
-		decay_rate = 0.5,
-		
-		queue = { }
-	}
-}
+			--keep track of the position of the last car in the stack, for more graceful animations
+			last_car_pos = Field.getCoords(Field.ENDPOINTS[i])
+		}
+
+		table.insert(Field.Lanes, lane)
+	end
+end
+
 
 
 --handle cars that are at the end of the lane
 function Field.updateLanes()
 
 	for i, item in ipairs(Traffic.Active) do
-		local endpoint = Field.ENDPOINTS[item.dir]
-		if item.x == endpoint.x and item.y == endpoint.y then
-			--update the lane stats
-			local lane = Field.Lanes[item.dir]
+
+		local lane = Field.Lanes[item.dir]
+
+		local gap = 4
+		local endpoint = lane.last_car_pos
+
+		if item.x == endpoint.x and item.y == endpoint.y and item.active then
 			
 			--special cars always clear the lane
 			if item.color == Traffic.TYPE.SPECIAL then
@@ -441,14 +435,27 @@ function Field.updateLanes()
 				lane.stored = 0
 				lane.level = 0
 				lane.fuel = 0
-			--then check to see if the lane is already defined
+				 
+				--reset the last car positions
+				lane.last_car_pos = Field.getCoords(Field.ENDPOINTS[lane.dir])
+			
+			--check to see if the lane is already defined
 			--and assign it if not
-			elseif Field.Lanes[item.dir].type == nil then
-				Field.Lanes[item.dir].type = item.color
+			elseif lane.type == nil then
+				lane.type = item.color
 				lane.stored = lane.stored + 1
+
+				--update the position of the last car (by adding the opposite of the direction of travel)
+				lane.last_car_pos.x = lane.last_car_pos.x - (Traffic.DIRECTION[lane.dir].x * gap)
+				lane.last_car_pos.y = lane.last_car_pos.y - (Traffic.DIRECTION[lane.dir].y * gap)
+
 				table.remove(Traffic.Active, i)
-			elseif Field.Lanes[item.dir].type == item.color then
+			elseif lane.type == item.color then
 				lane.stored = lane.stored + 1
+				
+				lane.last_car_pos.x = lane.last_car_pos.x - (Traffic.DIRECTION[lane.dir].x * gap)
+				lane.last_car_pos.y = lane.last_car_pos.y - (Traffic.DIRECTION[lane.dir].y * gap)
+
 				table.remove(Traffic.Active, i)
 			else
 				--wrong color resets the lane
@@ -456,6 +463,11 @@ function Field.updateLanes()
 				lane.stored = 0
 				lane.level = 0
 				lane.fuel = 0
+
+				lane.last_car_pos = Field.getCoords(Field.ENDPOINTS[lane.dir])
+
+				--make sure the car passing through does not get stored
+				item.active = false
 			end
 
 		end
@@ -472,6 +484,7 @@ function Field.checkGroups()
 			lane.fuel = lane.fuel + 1
 			--then clear the lane
 			lane.stored = 0
+			lane.last_car_pos = Field.getCoords(Field.ENDPOINTS[lane.dir])
 
 			--check if the lane is already locked to a color (level 1 or higher)
 			if lane.level <= 0 then
@@ -561,8 +574,9 @@ end
 
 	-- DRAW --
 	
---declare variables
+--declare and initialize variables
 GFX.selector_length = 0
+
 
 
 --animate the special cars
@@ -611,11 +625,11 @@ function GFX.drawStored()
 			--draw stored cars at the endpoint with offset
 			for j=lane.stored, 1, -1 do
 				--draw the stored cars in a stack
-				local endpoint = Field.ENDPOINTS[i]
+				local endpoint = Field.ENDPOINTS[lane.dir]
 				local type = lane.type
 				--shift the sprite using Traffic.DIRECTION
-				local x_pos = endpoint.x - (Traffic.DIRECTION[i].x * (j-1) * 3)
-				local y_pos = endpoint.y - (Traffic.DIRECTION[i].y * (j-1) * 3)
+				local x_pos = endpoint.x - (Traffic.DIRECTION[i].x * (j-1) * 4)
+				local y_pos = endpoint.y - (Traffic.DIRECTION[i].y * (j-1) * 4)
 				--TIC 80 expects rotation val from 0-3, 
 				--we have 1-4:
 				local rotation = i - 1
@@ -786,7 +800,7 @@ function Debug.showLaneStats()
 		local y_pos = GFX.FUEL_TANKS[i].y
 		
 		print(lane.type or "nil", x_pos, y_pos - 8, GFX.COLOR.ACCENT2)
-		print(lane.stored, x_pos, y_pos, GFX.COLOR.ACCENT1)
+		print(lane.dir, x_pos, y_pos, GFX.COLOR.ACCENT1)
 		print(lane.level, x_pos, y_pos + 8, GFX.COLOR.ACCENT2)
 		print(lane.fuel, x_pos, y_pos + 16, GFX.COLOR.ACCENT2)
 	end
@@ -802,7 +816,24 @@ function Debug.showFuelTanks()
 	end
 end
 
+
+--show where the endpoints currently are
+function Debug.showEndpoints()
+	for i, lane in ipairs(Field.Lanes) do
+		local x_pos = lane.last_car_pos.x
+		local y_pos = lane.last_car_pos.y
+
+		spr(255, x_pos, y_pos, 0, 1, 0, 0, 1, 1)
+	end
+end
+
 	-- MAIN --
+
+function BOOT()
+
+	Field.buildLanes()
+
+end
 	
 	
 
@@ -851,7 +882,8 @@ function TIC()
 	Debug.printActive()
 	Debug.printQueue()
 	Debug.showLaneStats()
-	Debug.showFuelTanks()
+	--Debug.showFuelTanks()
+	Debug.showEndpoints()
 
 end
 -- <TILES>
@@ -1009,7 +1041,7 @@ end
 -- 199:dddddfd0ddddfd00ddddfd00dddfd000ddffd000fffd0000dddd000000000000
 -- 200:0dfddddd00dfdddd00dfdddd000dfddd000dffdd0000dfff0000dddd00000000
 -- 201:dddddfd0ddddfd00ddddfd00dddfd000ddffd000fffd0000dddd000000000000
--- 255:2000000202000020002002000002200000022000002002000200002020000002
+-- 255:7000000707000070007007000007700000077000007007000700007070000007
 -- </TILES>
 
 -- <SPRITES>
