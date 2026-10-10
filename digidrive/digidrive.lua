@@ -42,6 +42,30 @@ Field.LANE_TOP_EDGE = Field.CENTER - Field.HALF_WIDTH
 
 Field.GAME_SPEED_SCALE = 32
 
+Field.FUEL_TANK_CAPS = {
+	RESERVED_1 = nil,
+	RESERVED_2 = nil,
+	RESERVED_3 = nil,
+
+	TRIANGLE = 3,
+	SQUARE = 4,
+	PENTAGON = 5,
+	HEXAGON = 6,
+	CIRCLE = 8
+}
+
+Field.FUEL_THRESHOLDS = {
+	Field.FUEL_TANK_CAPS.TRIANGLE,
+	Field.FUEL_TANK_CAPS.TRIANGLE + Field.FUEL_TANK_CAPS.SQUARE,
+	Field.FUEL_TANK_CAPS.TRIANGLE + Field.FUEL_TANK_CAPS.SQUARE +
+		Field.FUEL_TANK_CAPS.PENTAGON,
+	Field.FUEL_TANK_CAPS.TRIANGLE + Field.FUEL_TANK_CAPS.SQUARE +
+		Field.FUEL_TANK_CAPS.PENTAGON + Field.FUEL_TANK_CAPS.HEXAGON,
+	Field.FUEL_TANK_CAPS.TRIANGLE + Field.FUEL_TANK_CAPS.SQUARE +
+		Field.FUEL_TANK_CAPS.PENTAGON + Field.FUEL_TANK_CAPS.HEXAGON +
+		Field.FUEL_TANK_CAPS.CIRCLE
+}
+
 -- Traffic
 
 Traffic.TYPE = {
@@ -92,6 +116,18 @@ GFX.SPRITE = {
 		BG = 80,
 		FG = 176,
 		ACCENT = 22,
+		SHADOW = 190
+	},
+	TANK_HEXAGON = {
+		BG = 208,
+		FG = 210,
+		ACCENT = 212,
+		SHADOW = 190
+	},
+	TANK_CIRCLE = {
+		BG = 214,
+		FG = 216,
+		ACCENT = 218,
 		SHADOW = 190
 	}
 }
@@ -227,6 +263,16 @@ GFX.TANK_SPRITE = {
 		GFX.SPRITE.TANK_PENTAGON.BG,
 		GFX.SPRITE.TANK_PENTAGON.ACCENT,
 		GFX.SPRITE.TANK_PENTAGON.FG
+	},
+	{
+		GFX.SPRITE.TANK_HEXAGON.BG,
+		GFX.SPRITE.TANK_HEXAGON.ACCENT,
+		GFX.SPRITE.TANK_HEXAGON.FG
+	},
+	{
+		GFX.SPRITE.TANK_CIRCLE.BG,
+		GFX.SPRITE.TANK_CIRCLE.ACCENT,
+		GFX.SPRITE.TANK_CIRCLE.FG
 	}
 }
 
@@ -491,6 +537,40 @@ function Field.updateLanes()
 end
 
 
+--check for lanes that have 5 cars in them
+function Field.checkGroups()
+
+	for i, lane in ipairs(Field.Lanes) do
+		if lane.stored == 5 then
+			--add 1 unit of fuel
+			lane.fuel = lane.fuel + 1
+			--then clear the lane
+			Field.pushToGFX(lane.stored, lane.type, lane.dir)
+			lane.stored = 0
+			lane.last_car_pos = Field.getCoords(Field.ENDPOINTS[lane.dir])
+
+			--check if the lane is already locked to a color (level 1 or higher)
+			if lane.level <= 0 then
+				lane.level = 1
+			end
+		end
+	end
+end
+
+
+function Field.checkLevels()
+
+	for i, lane in ipairs(Field.Lanes) do
+		if lane.level >= 1 then
+			local max_capacity = Field.FUEL_THRESHOLDS[lane.level]
+			if lane.fuel > max_capacity then
+				lane.level = lane.level + 1
+			end
+		end
+	end
+end
+
+
 --push info from the lane to GFX for animations
 function Field.pushToGFX(count, color, dir)
 
@@ -513,27 +593,6 @@ function Field.pushToGFX(count, color, dir)
 	end
 end
 
-
---check for lanes that have 5 cars in them
-function Field.checkGroups()
-
-	for i, lane in ipairs(Field.Lanes) do
-		if lane.stored == 5 then
-			--add 1 unit of fuel
-			lane.fuel = lane.fuel + 1
-			--then clear the lane
-			Field.pushToGFX(lane.stored, lane.type, lane.dir)
-			lane.stored = 0
-			lane.last_car_pos = Field.getCoords(Field.ENDPOINTS[lane.dir])
-
-			--check if the lane is already locked to a color (level 1 or higher)
-			if lane.level <= 0 then
-				lane.level = 1
-			end
-		end
-	end
-end
-	
 	
 --adds a new car to the play queue
 function Field.addCar(color, dir)
@@ -568,7 +627,7 @@ function Field.queueMan()
 	--check to see if the queue is full
 	if #Field.Queue < 5 then
 		--get a random color and direction (implement difficulty scaled weighting later)
-		local color = math.random(1, 4)
+		local color = math.random(1, 1)
 		local dir = math.random(1, 4)
 		Field.addCar(color, dir)
 	end
@@ -1043,6 +1102,7 @@ function TIC()
 		Traffic.updatePositions()
 		Field.updateLanes()
 		Field.checkGroups()
+		Field.checkLevels()
 		Traffic.cleanup()
 	end
 
@@ -1072,7 +1132,7 @@ function TIC()
 	Debug.printCoords()
 	Debug.printActive()
 	Debug.printQueue()
-	--Debug.showLaneStats()
+	Debug.showLaneStats()
 	--Debug.showFuelTanks()
 	--Debug.showEndpoints()
 
