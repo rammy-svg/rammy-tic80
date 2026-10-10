@@ -441,6 +441,10 @@ function Field.updateLanes()
 			
 			--special cars always clear the lane
 			if item.color == Traffic.TYPE.SPECIAL then
+				if lane.type and lane.stored then
+					Field.pushToGFX(lane.stored, lane.type, lane.dir)
+				end
+
 				lane.type = nil
 				lane.stored = 0
 				lane.level = 0
@@ -469,6 +473,8 @@ function Field.updateLanes()
 				table.remove(Traffic.Active, i)
 			else
 				--wrong color resets the lane
+				Field.pushToGFX(lane.stored, lane.type, lane.dir)
+
 				lane.type = nil
 				lane.stored = 0
 				lane.level = 0
@@ -485,6 +491,29 @@ function Field.updateLanes()
 end
 
 
+--push info from the lane to GFX for animations
+function Field.pushToGFX(count, color, dir)
+
+	GFX.Sprites.Lanes[dir].type = color
+	GFX.Sprites.Lanes[dir].count = count
+
+	--add entities to the table
+	for i=count, 1, -1 do
+		local car = {
+			x_pos = Field.ENDPOINTS[dir].x - (Traffic.DIRECTION[dir].x * (i-1) * 4),
+			y_pos = Field.ENDPOINTS[dir].y - (Traffic.DIRECTION[dir].y * (i-1) * 4),
+			rotation = dir,
+
+			target_x = Field.ENDPOINTS[dir].x,
+			target_y = Field.ENDPOINTS[dir].y,
+			done = false
+		}
+
+		table.insert(GFX.Sprites.Lanes[dir].cars, car)
+	end
+end
+
+
 --check for lanes that have 5 cars in them
 function Field.checkGroups()
 
@@ -493,6 +522,7 @@ function Field.checkGroups()
 			--add 1 unit of fuel
 			lane.fuel = lane.fuel + 1
 			--then clear the lane
+			Field.pushToGFX(lane.stored, lane.type, lane.dir)
 			lane.stored = 0
 			lane.last_car_pos = Field.getCoords(Field.ENDPOINTS[lane.dir])
 
@@ -588,7 +618,26 @@ GFX.selector_length = 0
 
 
 --declare a table to keep track of sprites for animated effects
-GFX.Sprites = { }
+GFX.Sprites = {
+	Lanes = {
+		{ 
+			dir = Input.DIRECTION.UP, type = nil, count = nil,
+			cars = { }
+		},
+		{ 
+			dir = Input.DIRECTION.RIGHT, type = nil, count = nil,
+			cars = { }
+		},
+		{ 
+			dir = Input.DIRECTION.DOWN, type = nil, count = nil,
+			cars = { }
+		},
+		{ 
+			dir = Input.DIRECTION.LEFT, type = nil, count = nil,
+			cars = { }
+		}
+	}
+}
 
 
 --animate the special cars
@@ -609,6 +658,132 @@ function GFX.maskEdge()
 	--fix the drop shadow
 	rect(Field.SIZE, Field.LANE_TOP_EDGE + offset, offset, Field.LANE_WIDTH, GFX.COLOR.ACCENT2)
 end
+
+
+--animate the cars being removed from the lane
+function GFX.animateClearedLanes()
+	for i, lane in ipairs(GFX.Sprites.Lanes) do
+		local endpoint = Field.ENDPOINTS[lane.dir]
+		local type = lane.type
+		local rotation = lane.dir - 1
+		
+		for j, car in ipairs(lane.cars) do
+
+			--first update the positions of the cars
+			if car.x_pos ~= car.target_x or car.y_pos ~= car.target_y then
+				car.x_pos = endpoint.x - (Traffic.DIRECTION[lane.dir].x * (j-1) * 4)
+				car.y_pos = endpoint.y - (Traffic.DIRECTION[lane.dir].y * (j-1) * 4)
+			end
+
+			--draw the sprites
+			spr(type, car.x_pos, car.y_pos, 0, 1, 0, rotation, 1, 1)
+		end
+
+		--next check if all sprites are at the end of the lane
+		for k, car in ipairs(lane.cars) do
+			--break if any car is out of position
+			if ( car.x_pos ~= car.target_x or car.y_pos ~= car.target_y ) and not car.done then
+				break
+			end
+
+			--otherwise let the cars move off-screen
+			if (car.x_pos == car.target_x and car.y_pos == car.target_y and not car.done) or car.done then
+				car.done = true
+				car.x_pos = car.x_pos - (Traffic.DIRECTION[lane.dir].x * (k-1) * 4)
+				car.y_pos = car.y_pos - (Traffic.DIRECTION[lane.dir].y * (k-1) * 4)
+			end
+
+			--finally check if any cars are off-screen
+			if car.x_pos < Field.ORIGIN_X - Field.HALF_WIDTH or 
+				car.x_pos > Field.ORIGIN_X + Field.SIZE or 
+				car.y_pos < Field.ORIGIN_Y - Field.HALF_WIDTH or 
+				car.y_pos > Field.ORIGIN_Y + Field.SIZE then
+				
+				if car.done then
+					table.remove(lane.cars, k)
+				end
+
+			end
+		end
+	end
+end
+
+
+
+function GFX.animateClearedLanesNew()
+    local speed = 1  -- pixels per frame; increase for a faster animation
+
+    for i, lane in ipairs(GFX.Sprites.Lanes) do
+        local dir = lane.dir
+        local step = Traffic.DIRECTION[dir]
+        local rotation = dir - 1
+        local type = lane.type
+
+        if #lane.cars > 0 then
+            -- Phase 1: move all cars toward the endpoint (collapse)
+            for _, car in ipairs(lane.cars) do
+                if not car.done then
+                    local dx = car.target_x - car.x_pos
+                    local dy = car.target_y - car.y_pos
+                    if dx ~= 0 or dy ~= 0 then
+                        car.x_pos = car.x_pos + step.x * speed
+                        car.y_pos = car.y_pos + step.y * speed
+
+                        -- clamp so we don't overshoot the target
+                        if step.x > 0 and car.x_pos > car.target_x then car.x_pos = car.target_x end
+                        if step.x < 0 and car.x_pos < car.target_x then car.x_pos = car.target_x end
+                        if step.y > 0 and car.y_pos > car.target_y then car.y_pos = car.target_y end
+                        if step.y < 0 and car.y_pos < car.target_y then car.y_pos = car.target_y end
+                    end
+                end
+            end
+
+            -- Check if every car has reached the endpoint
+            local all_at_target = true
+            for _, car in ipairs(lane.cars) do
+                if not car.done and (car.x_pos ~= car.target_x or car.y_pos ~= car.target_y) then
+                    all_at_target = false
+                    break
+                end
+            end
+
+            -- Once they are all together, start moving them off-screen
+            if all_at_target then
+                for _, car in ipairs(lane.cars) do
+                    car.done = true
+                end
+            end
+
+            -- Phase 2: move done cars off the field
+            for _, car in ipairs(lane.cars) do
+                if car.done then
+                    car.x_pos = car.x_pos + step.x * speed
+                    car.y_pos = car.y_pos + step.y * speed
+                end
+            end
+
+            -- Draw the cars
+            for _, car in ipairs(lane.cars) do
+                spr(type, car.x_pos, car.y_pos, 0, 1, 0, rotation, 1, 1)
+            end
+
+            -- Remove cars that are completely off-screen (iterate backwards)
+            for k = #lane.cars, 1, -1 do
+                local car = lane.cars[k]
+                if car.done and (
+                    car.x_pos < Field.ORIGIN_X - Field.HALF_WIDTH or
+                    car.x_pos > Field.ORIGIN_X + Field.SIZE or
+                    car.y_pos < Field.ORIGIN_Y - Field.HALF_WIDTH or
+                    car.y_pos > Field.ORIGIN_Y + Field.SIZE
+                ) then
+                    table.remove(lane.cars, k)
+                end
+            end
+        end
+    end
+end
+
+
 
 --draw the gameplay field
 
@@ -651,38 +826,6 @@ function GFX.drawStored()
 	end
 end
 
-
---animate the lane clearing (cars collapse into one and are removed)
-function GFX.animClearLane(lane)
-
-	--first check if we need to add any new entities to the table
-	for _, lane in ipairs(Field.Lanes) do
-		if lane.stored <= 0 then
-			return
-		elseif lane.stored > 0 then
-			local endpoint = Field.ENDPOINTS[lane.dir]
-			local type = lane.type
-
-			for i=lane.stored, 1, -1 do
-				--add 100 (use as code to id animations for clearing lanes for now)
-				local index = i + 100
-				if not GFX.Sprites[index] then
-					local data = {
-						index = index
-						x = endpoint.x - (Traffic.DIRECTION[i].x * (j-1) * 4),
-						y = endpoint.y - (Traffic.DIRECTION[i].y * (j-1) * 4),
-						direction = i
-					}
-					table.insert(GFX.Sprites, index, data)
-				end
-			end
-		end
-	end
-
-	--then update positions of entities currently in the table
-	for i=#GFX.Sprites, 1, -1 do
-		--check to see if it is at the front of the lane already
-		local endpoint = Field.ENDPOINTS[]
 
 
 
@@ -919,17 +1062,18 @@ function TIC()
 
 	if #Traffic.Active > 0 then
 		GFX.drawTraffic()
-		GFX.maskEdge()
 	end
 
 	GFX.drawStored()
-	GFX.drawFuelTanks()
+	GFX.animateClearedLanesNew()
+	--GFX.drawFuelTanks()
+	GFX.maskEdge()
 	
 	Debug.printCoords()
 	Debug.printActive()
 	Debug.printQueue()
 	--Debug.showLaneStats()
-	Debug.showFuelTanks()
+	--Debug.showFuelTanks()
 	--Debug.showEndpoints()
 
 end
