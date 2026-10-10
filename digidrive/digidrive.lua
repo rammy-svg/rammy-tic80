@@ -79,17 +79,20 @@ GFX.SPRITE = {
 	TANK_TRIANGLE = {
 		BG = 16,
 		FG = 112,
-		ACCENT = 90
+		ACCENT = 90,
+		SHADOW = 186
 	},
 	TANK_SQUARE = {
 		BG = 48,
 		FG = 144,
-		ACCENT = 56
+		ACCENT = 56,
+		SHADOW = 188
 	},
 	TANK_PENTAGON = {
 		BG = 80,
 		FG = 176,
-		ACCENT = 22
+		ACCENT = 22,
+		SHADOW = 190
 	}
 }
 
@@ -203,10 +206,10 @@ GFX.SELECTOR = {
 
 
 GFX.FUEL_TANKS = {
-	{ x = Field.LANE_LEFT_EDGE - 1.25 * Field.LANE_WIDTH, y = Field.LANE_WIDTH, },
-	{ x = Field.SIZE - 2 * Field.LANE_WIDTH, y = Field.LANE_TOP_EDGE - 1.25 * Field.LANE_WIDTH },
-	{ x = Field.LANE_LEFT_EDGE + 1.5 * Field.LANE_WIDTH, y = Field.SIZE - 2 * Field.LANE_WIDTH },
-	{ x = 1.25 * Field.LANE_WIDTH, y = Field.LANE_TOP_EDGE + 1.5 * Field.LANE_WIDTH } 
+	{ x = Field.LANE_LEFT_EDGE - 2.25 * Field.LANE_WIDTH, y = Field.LANE_WIDTH, },
+	{ x = Field.CENTER + 1.25 * Field.LANE_WIDTH, y = Field.LANE_TOP_EDGE - 2.25 * Field.LANE_WIDTH },
+	{ x = Field.LANE_LEFT_EDGE + 1.25 * Field.LANE_WIDTH, y = Field.SIZE - 3 * Field.LANE_WIDTH },
+	{ x = Field.LANE_WIDTH, y = Field.LANE_TOP_EDGE + 1.25 * Field.LANE_WIDTH } 
 }
 
 GFX.TANK_SPRITE = {
@@ -264,6 +267,8 @@ function Traffic.spawnNew(car)
 		x = spawn_x,
 		y = spawn_y,
 		dir = dir,
+		new_dir = nil,
+
 		changed = false,
 		thru = false,
 		active = true
@@ -306,6 +311,11 @@ function Traffic.canTurn(item, new_dir)
     --car must already be in the destination lane before it can turn
     local lane = Field.LANE[new_dir]
     return item[lane.axis] == lane.value
+end
+
+function Traffic.deferTurn(item, new_dir)
+	item.new_dir = new_dir
+	item.changed = true
 end
 
 -- new_dir is the direction the player is holding (or nil)
@@ -812,7 +822,8 @@ function Debug.showFuelTanks()
 	for i, tank in ipairs(GFX.FUEL_TANKS) do
 		local x_pos = tank.x
 		local y_pos = tank.y
-		spr(GFX.SPRITE.TANK_TRIANGLE.BG, x_pos, y_pos, 0, 1, 0, 0, 2, 2)
+		spr(GFX.SPRITE.TANK_TRIANGLE.SHADOW, x_pos + 4, y_pos + 2, 0, 2, 0, 0, 2, 2)
+		spr(GFX.SPRITE.TANK_TRIANGLE.BG, x_pos, y_pos, 0, 2, 0, 0, 2, 2)
 	end
 end
 
@@ -882,7 +893,7 @@ function TIC()
 	Debug.printActive()
 	Debug.printQueue()
 	--Debug.showLaneStats()
-	--Debug.showFuelTanks()
+	Debug.showFuelTanks()
 	--Debug.showEndpoints()
 
 end
@@ -1031,6 +1042,12 @@ end
 -- 183:00000000d0000000fd000000ffd00000fffd0000dddfd000ddddfd00dddddfd0
 -- 184:000000000000000d000000df00000dfd0000dfdd000dfddd00dfdddd0dfddddd
 -- 185:00000000d0000000fd000000dfd00000ddfd0000dddfd000ddddfd00dddddfd0
+-- 186:000000000000000e0000000e000000ee000000ee00000eee00000eee0000eeee
+-- 187:000000000000000000000000e0000000e0000000ee000000ee000000eee00000
+-- 188:000000000000000000eeeeee00eeeeee00eeeeee00eeeeee00eeeeee00eeeeee
+-- 189:0000000000000000eeeeee00eeeeee00eeeeee00eeeeee00eeeeee00eeeeee00
+-- 190:000000000000000e000000ee00000eee0000eeee000eeeee00eeeeee0eeeeeee
+-- 191:00000000e0000000ee000000eee00000eeee0000eeeee000eeeeee00eeeeeee0
 -- 192:0dffffff00dfffff00dfffff000dfddd000dffdd0000dfff0000dddd00000000
 -- 193:ffffffd0fffffd00fffffd00dddfd000ddffd000fffd0000dddd000000000000
 -- 194:0dffffff00dfdddd00dfdddd000dfddd000dffdd0000dfff0000dddd00000000
@@ -1041,6 +1058,12 @@ end
 -- 199:dddddfd0ddddfd00ddddfd00dddfd000ddffd000fffd0000dddd000000000000
 -- 200:0dfddddd00dfdddd00dfdddd000dfddd000dffdd0000dfff0000dddd00000000
 -- 201:dddddfd0ddddfd00ddddfd00dddfd000ddffd000fffd0000dddd000000000000
+-- 202:0000eeee000eeeee000eeeee00eeeeee00eeeeee0eeeeeee0eeeeeee00000000
+-- 203:eee00000eeee0000eeee0000eeeee000eeeee000eeeeee00eeeeee0000000000
+-- 204:00eeeeee00eeeeee00eeeeee00eeeeee00eeeeee00eeeeee0000000000000000
+-- 205:eeeeee00eeeeee00eeeeee00eeeeee00eeeeee00eeeeee000000000000000000
+-- 206:0eeeeeee00eeeeee00eeeeee000eeeee000eeeee0000eeee0000eeee00000000
+-- 207:eeeeeee0eeeeee00eeeeee00eeeee000eeeee000eeee0000eeee000000000000
 -- 255:7000000707000070007007000007700000077000007007000700007070000007
 -- </TILES>
 
