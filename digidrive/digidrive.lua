@@ -562,7 +562,6 @@ end
 Input.held = nil
 
 
-
 --handle player inputs in-game
 function Input.handleInputs()
 
@@ -587,6 +586,9 @@ end
 --declare and initialize variables
 GFX.selector_length = 0
 
+
+--declare a table to keep track of sprites for animated effects
+GFX.Sprites = { }
 
 
 --animate the special cars
@@ -648,6 +650,40 @@ function GFX.drawStored()
 		end
 	end
 end
+
+
+--animate the lane clearing (cars collapse into one and are removed)
+function GFX.animClearLane(lane)
+
+	--first check if we need to add any new entities to the table
+	for _, lane in ipairs(Field.Lanes) do
+		if lane.stored <= 0 then
+			return
+		elseif lane.stored > 0 then
+			local endpoint = Field.ENDPOINTS[lane.dir]
+			local type = lane.type
+
+			for i=lane.stored, 1, -1 do
+				--add 100 (use as code to id animations for clearing lanes for now)
+				local index = i + 100
+				if not GFX.Sprites[index] then
+					local data = {
+						index = index
+						x = endpoint.x - (Traffic.DIRECTION[i].x * (j-1) * 4),
+						y = endpoint.y - (Traffic.DIRECTION[i].y * (j-1) * 4),
+						direction = i
+					}
+					table.insert(GFX.Sprites, index, data)
+				end
+			end
+		end
+	end
+
+	--then update positions of entities currently in the table
+	for i=#GFX.Sprites, 1, -1 do
+		--check to see if it is at the front of the lane already
+		local endpoint = Field.ENDPOINTS[]
+
 
 
 --draw fuel tanks next to lanes
