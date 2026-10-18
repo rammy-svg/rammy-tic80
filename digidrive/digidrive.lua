@@ -276,6 +276,18 @@ GFX.TANK_SPRITE = {
 	}
 }
 
+
+		-- GLOBAL HELPERS --
+
+-- Move `current` toward `target` by at most `max_step`, snapping on arrival.
+function stepToward(current, target, max_step)
+    local delta = target - current
+    if math.abs(delta) <= max_step then
+        return target
+    end
+    return current + (delta > 0 and max_step or -max_step)
+end
+
 		-- TRAFFIC --
 
 
@@ -539,22 +551,22 @@ end
 
 --check for lanes that have 5 cars in them
 function Field.checkGroups()
+    for i, lane in ipairs(Field.Lanes) do
+        if lane.stored == 5 then
+            local anim = GFX.Sprites.Lanes[lane.dir]
+            if #anim.cars == 0 then
+                Field.pushToGFX(lane.stored, lane.type, lane.dir, "fuel")
+            end
 
-	for i, lane in ipairs(Field.Lanes) do
-		if lane.stored == 5 then
-			--add 1 unit of fuel
-			lane.fuel = lane.fuel + 1
-			--then clear the lane
-			Field.pushToGFX(lane.stored, lane.type, lane.dir)
-			lane.stored = 0
-			lane.last_car_pos = Field.getCoords(Field.ENDPOINTS[lane.dir])
+            lane.fuel = lane.fuel + 1
+            lane.stored = 0
+            lane.last_car_pos = Field.getCoords(Field.ENDPOINTS[lane.dir])
 
-			--check if the lane is already locked to a color (level 1 or higher)
-			if lane.level <= 0 then
-				lane.level = 1
-			end
-		end
-	end
+            if lane.level <= 0 then
+                lane.level = 1
+            end
+        end
+    end
 end
 
 
@@ -572,25 +584,34 @@ end
 
 
 --push info from the lane to GFX for animations
-function Field.pushToGFX(count, color, dir)
+function Field.pushToGFX(count, color, dir, mode)
+    mode = mode or "clear"
 
-	GFX.Sprites.Lanes[dir].type = color
-	GFX.Sprites.Lanes[dir].count = count
+    local anim = GFX.Sprites.Lanes[dir]
+    anim.type  = color
+    anim.count = count
+    anim.mode  = mode
 
-	--add entities to the table
-	for i=count, 1, -1 do
-		local car = {
-			x_pos = Field.ENDPOINTS[dir].x - (Traffic.DIRECTION[dir].x * (i-1) * 4),
-			y_pos = Field.ENDPOINTS[dir].y - (Traffic.DIRECTION[dir].y * (i-1) * 4),
-			rotation = dir,
+    if mode == "fuel" then
+        -- Fuel tanks are drawn at 2x scale (16x16), cars are 8x8.
+        -- Offset by (4, 4) to center the car on the tank.
+        local tank = GFX.FUEL_TANKS[dir]
+        anim.fuel_target = { x = tank.x, y = tank.y }
+    else
+        anim.fuel_target = nil
+    end
 
-			target_x = Field.ENDPOINTS[dir].x,
-			target_y = Field.ENDPOINTS[dir].y,
-			done = false
-		}
-
-		table.insert(GFX.Sprites.Lanes[dir].cars, car)
-	end
+    for i = count, 1, -1 do
+        local car = {
+            x_pos = Field.ENDPOINTS[dir].x - (Traffic.DIRECTION[dir].x * (i-1) * 4),
+            y_pos = Field.ENDPOINTS[dir].y - (Traffic.DIRECTION[dir].y * (i-1) * 4),
+            rotation = dir,
+            target_x = Field.ENDPOINTS[dir].x,
+            target_y = Field.ENDPOINTS[dir].y,
+            done = false
+        }
+        table.insert(anim.cars, car)
+    end
 end
 
 	
@@ -627,7 +648,7 @@ function Field.queueMan()
 	--check to see if the queue is full
 	if #Field.Queue < 5 then
 		--get a random color and direction (implement difficulty scaled weighting later)
-		local color = math.random(1, 1)
+		local color = math.random(1, 2)
 		local dir = math.random(1, 4)
 		Field.addCar(color, dir)
 	end
@@ -720,56 +741,83 @@ end
 
 
 --animate the cars being removed from the lane
-function GFX.animateClearedLanes()
-	for i, lane in ipairs(GFX.Sprites.Lanes) do
-		local endpoint = Field.ENDPOINTS[lane.dir]
-		local type = lane.type
-		local rotation = lane.dir - 1
-		
-		for j, car in ipairs(lane.cars) do
+function GFX.animateClearedLanesNew()
+    local speed = 2  -- pixels per frame; tune to taste
 
-			--first update the positions of the cars
-			if car.x_pos ~= car.target_x or car.y_pos ~= car.target_y then
-				car.x_pos = endpoint.x - (Traffic.DIRECTION[lane.dir].x * (j-1) * 4)
-				car.y_pos = endpoint.y - (Traffic.DIRECTION[lane.dir].y * (j-1) * 4)
-			end
+    for _, anim in ipairs(GFX.Sprites.Lanes) do
+        local dir      = anim.dir
+        local step     = Traffic.DIRECTION[dir]
+        local rotation = dir - 1
+        local type     = anim.type
+        local mode     = anim.mode or "clear"
 
-			--draw the sprites
-			spr(type, car.x_pos, car.y_pos, 0, 1, 0, rotation, 1, 1)
-		end
+        if #anim.cars > 0 then
 
-		--next check if all sprites are at the end of the lane
-		for k, car in ipairs(lane.cars) do
-			--break if any car is out of position
-			if ( car.x_pos ~= car.target_x or car.y_pos ~= car.target_y ) and not car.done then
-				break
-			end
+            -- PHASE 1: collapse every car onto the lane endpoint
+            local all_collapsed = true
+            for _, car in ipairs(anim.cars) do
+                if not car.done then
+                    if car.x_pos ~= car.target_x or car.y_pos ~= car.target_y then
+                        all_collapsed = false
+                        car.x_pos = stepToward(car.x_pos, car.target_x, speed)
+                        car.y_pos = stepToward(car.y_pos, car.target_y, speed)
+                    end
+                end
+            end
 
-			--otherwise let the cars move off-screen
-			if (car.x_pos == car.target_x and car.y_pos == car.target_y and not car.done) or car.done then
-				car.done = true
-				car.x_pos = car.x_pos - (Traffic.DIRECTION[lane.dir].x * (k-1) * 4)
-				car.y_pos = car.y_pos - (Traffic.DIRECTION[lane.dir].y * (k-1) * 4)
-			end
+            -- PHASE 2: move as a group
+            if all_collapsed then
+                if mode == "fuel" then
+                    -- Move the collapsed stack toward the fuel tank.
+                    local t      = anim.fuel_target
+                    local sample = anim.cars[1]
+                    local dx     = t.x - sample.x_pos
+                    local dy     = t.y - sample.y_pos
+                    local dist   = math.sqrt(dx * dx + dy * dy)
 
-			--finally check if any cars are off-screen
-			if car.x_pos < Field.ORIGIN_X - Field.HALF_WIDTH or 
-				car.x_pos > Field.ORIGIN_X + Field.SIZE or 
-				car.y_pos < Field.ORIGIN_Y - Field.HALF_WIDTH or 
-				car.y_pos > Field.ORIGIN_Y + Field.SIZE then
-				
-				if car.done then
-					table.remove(lane.cars, k)
-				end
+                    if dist <= speed then
+                        -- Arrived: release the sprites; the tank sprite is already drawn
+                        anim.cars = {}
+                    else
+                        local nx = (dx / dist) * speed
+                        local ny = (dy / dist) * speed
+                        for _, car in ipairs(anim.cars) do
+							car.done = true
+                            car.x_pos = car.x_pos + nx
+                            car.y_pos = car.y_pos + ny
+                        end
+                    end
+                else
+                    -- "clear": scroll off the field as before
+                    for _, car in ipairs(anim.cars) do
+                        car.done = true
+                        car.x_pos = car.x_pos + step.x * speed
+                        car.y_pos = car.y_pos + step.y * speed
+                    end
 
-			end
-		end
-	end
+                    for k = #anim.cars, 1, -1 do
+                        local car = anim.cars[k]
+                        if car.x_pos < Field.ORIGIN_X - Field.HALF_WIDTH or
+                           car.x_pos > Field.ORIGIN_X + Field.SIZE or
+                           car.y_pos < Field.ORIGIN_Y - Field.HALF_WIDTH or
+                           car.y_pos > Field.ORIGIN_Y + Field.SIZE then
+                            table.remove(anim.cars, k)
+                        end
+                    end
+                end
+            end
+
+            -- DRAW
+            for _, car in ipairs(anim.cars) do
+                spr(type, car.x_pos, car.y_pos, 0, 1, 0, rotation, 1, 1)
+            end
+        end
+    end
 end
 
 
 
-function GFX.animateClearedLanesNew()
+function GFX.animateClearedLanes()
     local speed = 1  -- pixels per frame; increase for a faster animation
 
     for i, lane in ipairs(GFX.Sprites.Lanes) do
@@ -1126,7 +1174,7 @@ function TIC()
 
 	GFX.drawStored()
 	GFX.animateClearedLanesNew()
-	--GFX.drawFuelTanks()
+	GFX.drawFuelTanks()
 	GFX.maskEdge()
 	
 	Debug.printCoords()
