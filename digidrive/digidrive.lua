@@ -553,7 +553,7 @@ end
 function Field.checkGroups()
     for i, lane in ipairs(Field.Lanes) do
         if lane.stored == 5 then
-            local anim = GFX.Sprites.Lanes[lane.dir]
+            local anim = GFX.Sprites.Traffic[lane.dir]
             if #anim.cars == 0 then
                 Field.pushToGFX(lane.stored, lane.type, lane.dir, "fuel")
             end
@@ -587,7 +587,7 @@ end
 function Field.pushToGFX(count, color, dir, mode)
     mode = mode or "clear"
 
-    local anim = GFX.Sprites.Lanes[dir]
+    local anim = GFX.Sprites.Traffic[dir]
     anim.type  = color
     anim.count = count
     anim.mode  = mode
@@ -596,7 +596,8 @@ function Field.pushToGFX(count, color, dir, mode)
         -- Fuel tanks are drawn at 2x scale (16x16), cars are 8x8.
         -- Offset by (4, 4) to center the car on the tank.
         local tank = GFX.FUEL_TANKS[dir]
-        anim.fuel_target = { x = tank.x, y = tank.y }
+		local offset = 4
+        anim.fuel_target = { x = tank.x + offset, y = tank.y + offset }
     else
         anim.fuel_target = nil
     end
@@ -699,7 +700,7 @@ GFX.selector_length = 0
 
 --declare a table to keep track of sprites for animated effects
 GFX.Sprites = {
-	Lanes = {
+	Traffic = {
 		{ 
 			dir = Input.DIRECTION.UP, type = nil, count = nil,
 			cars = { }
@@ -742,9 +743,9 @@ end
 
 --animate the cars being removed from the lane
 function GFX.animateClearedLanesNew()
-    local speed = 2  -- pixels per frame; tune to taste
+    local speed = 1  -- pixels per frame; tune to taste
 
-    for _, anim in ipairs(GFX.Sprites.Lanes) do
+    for _, anim in ipairs(GFX.Sprites.Traffic) do
         local dir      = anim.dir
         local step     = Traffic.DIRECTION[dir]
         local rotation = dir - 1
@@ -774,6 +775,8 @@ function GFX.animateClearedLanesNew()
                     local dx     = t.x - sample.x_pos
                     local dy     = t.y - sample.y_pos
                     local dist   = math.sqrt(dx * dx + dy * dy)
+
+					speed = 2
 
                     if dist <= speed then
                         -- Arrived: release the sprites; the tank sprite is already drawn
@@ -820,7 +823,7 @@ end
 function GFX.animateClearedLanes()
     local speed = 1  -- pixels per frame; increase for a faster animation
 
-    for i, lane in ipairs(GFX.Sprites.Lanes) do
+    for i, lane in ipairs(GFX.Sprites.Traffic) do
         local dir = lane.dir
         local step = Traffic.DIRECTION[dir]
         local rotation = dir - 1
