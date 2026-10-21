@@ -9,27 +9,27 @@ y=24
 n_palette=nil
 
 SPRITES = {
-				['ticboy'] = {
-								ID = 1,
-								H = 2, W = 2,
-								FRAMES = 2,
-								KEY = 14,
-								PALETTES = {
-												DEFAULT = 1,
-												YELLOW = 2,
-												RED = 3,
-												GREEN = 4
-								}
-				}
+	['ticboy'] = {
+		ID = 1,
+		H = 2, W = 2,
+		FRAMES = 2,
+		KEY = 14,
+		PALETTES = {
+				DEFAULT = 1,
+				YELLOW = 2,
+				RED = 3,
+				GREEN = 4
+		}
+	}
 }
 
 PALETTES = {
-				['ticboy'] = {  
-											{ 10, 08 },
-											{ 04, 02 }, 
-											{ 02, 01 },
-											{ 06, 07 }
-				}
+	ticboy = {  
+		DEFAULT = { 10, 08 },
+		YELLOW = { 04, 02 }, 
+		RED = { 02, 01 },
+		GREEN = { 06, 07 }
+	}
 }
 
 --helper function to remap colors in a palette
@@ -46,31 +46,49 @@ function pal(old_color, new_color)
     end
 end
 
+function frameTileOffset(sprite, frame_id)
+	local w = sprite.W
+	local h = sprite.H
+
+	local frames = sprite.FRAMES_PER_ROW or (16//w)
+	local frame_x = frame_id % frames
+	local frame_y = frame_id // frames
+
+	return frame_x * w + frame_y * h * 16
+end
+
 --draw a sprite with a specified palette
 --leave "new_palette" as nil for default palette
---use "t" to control animation, use "1" for static sprite
-function spr2(name, x, y, t, scale, flip, rotate, new_palette)
-				local sprite = SPRITES[name]
-				local palette = PALETTES[name] or nil
-				local default_pal_index = sprite.PALETTES.DEFAULT or nil
-				local default_pal = palette[default_pal_index] or nil
-				local current_frame = (t % sprite.FRAMES) * sprite.W
-				
-				if new_palette then
-								local new_pal = palette[new_palette]
-								for i = #default_pal, 1, -1 do
-											 local old_color = default_pal[i]
-												local new_color = new_pal[i]
-												pal(old_color, new_color)
-								end
-				end
-				
-				spr(sprite.ID + current_frame, x, y, sprite.KEY,
-												scale, flip, rotate, sprite.H, sprite.W)
-				
-				pal()
-		
-		end
+--use "t" and "speed" to control animation
+--pass "frame" directly to "t" for manual control
+function spr2(name, x, y, scale, flip, rotate, t, speed, palette)
+	local sprite = SPRITES[name]
+	local speed = speed or 2
+	local current_frame = (t * speed // 60) % sprite.FRAMES
+	local frame_tile = sprite.ID + frameTileOffset(sprite, current_frame)
+
+	local pal_table = PALETTES[name] or nil
+	local pal_changed = nil
+
+    if palette and pal_table and pal_table[palette] then
+        local old_pal = pal_table.DEFAULT
+        local new_pal = pal_table[palette]
+        pal_changed = {}
+        for i = 1, math.min(#old_pal, #new_pal) do
+            pal(old_pal[i], new_pal[i])
+            pal_changed[#pal_changed+1] = old_pal[i]
+        end
+    end
+
+    spr(frame_tile, x, y, sprite.KEY, scale, flip, rotate, sprite.W, sprite.H)
+
+    if pal_changed then
+        for i = 1, #pal_changed do
+            pal(pal_changed[i], pal_changed[i])
+        end
+    end
+
+end
 
 
 function TIC()
@@ -80,14 +98,14 @@ function TIC()
 	if btn(2) then x=x-1 end
 	if btn(3) then x=x+1 end
 	
-	if keyp(28) then n_palette = 1 end 
-	if keyp(29) then n_palette = 2 end
-	if keyp(30) then n_palette = 3 end
-	if keyp(31) then n_palette = 4 end
+	if keyp(28) then n_palette = 'DEFAULT' end 
+	if keyp(29) then n_palette = 'YELLOW' end
+	if keyp(30) then n_palette = 'RED' end
+	if keyp(31) then n_palette = 'GREEN' end
 
 	cls(13)
 	
-	spr2('ticboy',x,y,t%60//30,3,0,0,n_palette)
+	spr2('ticboy',x,y,3,0,0,t,2,n_palette)
 	print("HELLO WORLD!",84,84)
 	t=t+1
 end
