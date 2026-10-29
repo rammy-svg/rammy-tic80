@@ -36,6 +36,7 @@ Field.SIZE = 136
 Field.CENTER = Field.SIZE / 2
 Field.LANE_WIDTH = 17
 Field.HALF_WIDTH = 8
+Field.CAR_SIZE = 8
 
 Field.LANE_LEFT_EDGE = Field.CENTER - Field.HALF_WIDTH
 Field.LANE_TOP_EDGE = Field.CENTER - Field.HALF_WIDTH
@@ -67,6 +68,8 @@ Field.FUEL_THRESHOLDS = {
 }
 
 -- Traffic
+
+Traffic.SNAP_SPEED = 1	--px/frame
 
 Traffic.TYPE = {
 	CONE = 1,
@@ -177,7 +180,6 @@ Field.SPAWN = {
 }
 
 
---this is the zone where cars can change direction
 Field.INTERSECTION = {
 	x_min = Field.CENTER - Field.HALF_WIDTH,
 	x_max = Field.CENTER + Field.HALF_WIDTH,
@@ -186,13 +188,19 @@ Field.INTERSECTION = {
 }
 
 
+Field.TURN_ZONE = {
+    x_min = Field.LANE_LEFT_EDGE,
+    x_max = Field.LANE_LEFT_EDGE + Field.LANE_WIDTH - Field.CAR_SIZE,
+    y_min = Field.LANE_TOP_EDGE,
+    y_max = Field.LANE_TOP_EDGE + Field.LANE_WIDTH - Field.CAR_SIZE,
+}
+
 Field.ENDPOINTS = {
 	{ x = Field.LANE_LEFT_EDGE, y = 0 }, -- UP
 	{ x = Field.SIZE - Field.HALF_WIDTH, y = Field.LANE_TOP_EDGE }, -- RIGHT
 	{ x = Field.CENTER + 1, y = Field.SIZE - Field.HALF_WIDTH }, -- DOWN
 	{ x = 0, y = Field.CENTER + 1 } -- LEFT
 }
-
 
 Field.LANE = {
 	{ axis = "x", value = Field.LANE_LEFT_EDGE },
@@ -345,48 +353,27 @@ function Traffic.inIntersection(item)
 end
 
 -- check if the car can turn on this frame
+function Traffic.inTurnZone(item)
+    local z = Field.TURN_ZONE
+    return item.x >= z.x_min and item.x <= z.x_max
+       and item.y >= z.y_min and item.y <= z.y_max
+end
+
 function Traffic.canTurn(item, new_dir)
-
-    if item.changed then 
-		return false 
-	end
-    
-	--ignore direction change if car is already moving in that direction
-	if item.dir == new_dir then 
-		return false
-	end
-    
-	--no U-turns allowed
-	if (item.dir + 1) % 4 + 1 == new_dir then 
-		return false 
-	end
-    
-	--can't turn unless in intersection
-	if not Traffic.inIntersection(item) then 
-		return false 
-	end
-
-    --car must already be in the destination lane before it can turn
-    local lane = Field.LANE[new_dir]
-    return item[lane.axis] == lane.value
+    if item.changed then return false end
+    if item.dir == new_dir then return false end
+    if (item.dir + 1) % 4 + 1 == new_dir then return false end -- no U-turns
+    return Traffic.inTurnZone(item)
 end
 
-function Traffic.deferTurn(item, new_dir)
-	item.new_dir = new_dir
-	item.changed = true
-end
-
--- new_dir is the direction the player is holding (or nil)
 function Traffic.applyTurns(new_dir)
-    if not new_dir then 
-		return
-	end
-    
-	for _, item in ipairs(Traffic.Active) do
-    
-		if Traffic.canTurn(item, new_dir) then
-    		item.dir = new_dir
+    if not new_dir then return end
+    for _, item in ipairs(Traffic.Active) do
+        if Traffic.canTurn(item, new_dir) then
+            item.dir = new_dir
             item.changed = true
+            local lane = Field.LANE[new_dir]
+            item.snap = { axis = lane.axis, value = lane.value }
         end
     end
 end
@@ -394,24 +381,23 @@ end
 
 --function for updating the position of cars on the map
 function Traffic.updatePositions()
+    for _, item in ipairs(Traffic.Active) do
+        --ease toward the lane
+        if item.snap then
+            local axis, target = item.snap.axis, item.snap.value
+            if item[axis] < target then
+                item[axis] = math.min(item[axis] + Traffic.SNAP_SPEED, target)
+            else
+                item[axis] = math.max(item[axis] - Traffic.SNAP_SPEED, target)
+            end
+            if item[axis] == target then item.snap = nil end
+        end
 
-	for i, item in ipairs(Traffic.Active) do
-		local x_pos = item.x
-		local y_pos = item.y
-		local dir = item.dir
-		local move_x = Traffic.DIRECTION[dir].x
-		local move_y = Traffic.DIRECTION[dir].y
-		
-		--update positions
-		item.x = x_pos + move_x
-		item.y = y_pos + move_y
-
-		--check to see if the car has passed through the intersection yet
-		if Traffic.inIntersection(item) then
-			item.thru = true
-		end
-
-	end
+        --advance in the current direction
+        local move = Traffic.DIRECTION[item.dir]
+        item.x = item.x + move.x
+        item.y = item.y + move.y
+    end
 end
 
 
@@ -422,6 +408,12 @@ function Traffic.cleanup()
 
 	for i = #Traffic.Active, 1, -1 do
 		local item = Traffic.Active[i]
+
+		--first check to see if the car has moved through the intersection
+		--and flag it if it has
+		if not item.thru and Traffic.inIntersection(item) then
+			item.thru = true
+		end
 
 		--use field size to determine if the car is off-screen
 		if item.x < Field.ORIGIN_X - Field.HALF_WIDTH or 
@@ -722,7 +714,7 @@ GFX.Sprites = {
 
 
 --animate the special cars
-function GFX.drawSpecial(x_pos, y_pos, rotation, thru)
+function GFX.drawSpecial(x_pos, y_pos, rotation)
 	local t = time()
 	local frame_count = 6
 	--modulate the frame rate to slow down the animation
@@ -970,7 +962,7 @@ function GFX.drawTraffic()
 
 		--handle special cars first
 		if item.color == Traffic.TYPE.SPECIAL then
-			GFX.drawSpecial(x_pos, y_pos, rotation, item.thru)
+			GFX.drawSpecial(x_pos, y_pos, rotation)
 		else
 			spr(color, x_pos, y_pos, 0, 1, 0, rotation, 1, 1)
 		end
@@ -1098,8 +1090,12 @@ function Debug.showLaneStats()
 		local x_pos = GFX.FUEL_TANKS[i].x
 		local y_pos = GFX.FUEL_TANKS[i].y
 		
-		print(lane.type or "nil", x_pos, y_pos - 8, GFX.COLOR.ACCENT2)
+		--print the actual names of the color/lane direction as strings
+		print(lane.type or ("none" ))
+		
+
 		print(lane.dir, x_pos, y_pos, GFX.COLOR.ACCENT1)
+		
 		print(lane.level, x_pos, y_pos + 8, GFX.COLOR.ACCENT2)
 		print(lane.fuel, x_pos, y_pos + 16, GFX.COLOR.ACCENT2)
 	end
@@ -1180,9 +1176,9 @@ function TIC()
 	GFX.drawFuelTanks()
 	GFX.maskEdge()
 	
-	Debug.printCoords()
+	--Debug.printCoords()
 	Debug.printActive()
-	Debug.printQueue()
+	--Debug.printQueue()
 	Debug.showLaneStats()
 	--Debug.showFuelTanks()
 	--Debug.showEndpoints()
