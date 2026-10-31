@@ -23,6 +23,7 @@ SPRITES = {
 	}
 }
 
+--the actual palette swap values for each sprite, including the default palette values
 PALETTES = {
 	ticboy = {  
 		DEFAULT = { 10, 08 },
@@ -46,11 +47,13 @@ function pal(old_color, new_color)
     end
 end
 
-function frameTileOffset(sprite, frame_id)
+--this function gets the tile offset for a given frame of a sprite
+function getFrameOffset(sprite, frame_id)
 	local w = sprite.W
 	local h = sprite.H
-
+	--TIC-80 stores sprites in a 16x16 grid so we use that as default
 	local frames = sprite.FRAMES_PER_ROW or (16//w)
+	--calculate x and y position assuming the frames are laid out left to right, top to bottom
 	local frame_x = frame_id % frames
 	local frame_y = frame_id // frames
 
@@ -65,11 +68,12 @@ function spr2(name, x, y, scale, flip, rotate, t, speed, palette)
 	local sprite = SPRITES[name]
 	local speed = speed or 2
 	local current_frame = (t * speed // 60) % sprite.FRAMES
-	local frame_tile = sprite.ID + frameTileOffset(sprite, current_frame)
+	local frame_tile = sprite.ID + getFrameOffset(sprite, current_frame)
 
 	local pal_table = PALETTES[name] or nil
 	local pal_changed = nil
 
+	--remember the old palette values and swap in the new ones
     if palette and pal_table and pal_table[palette] then
         local old_pal = pal_table.DEFAULT
         local new_pal = pal_table[palette]
@@ -82,6 +86,7 @@ function spr2(name, x, y, scale, flip, rotate, t, speed, palette)
 
     spr(frame_tile, x, y, sprite.KEY, scale, flip, rotate, sprite.W, sprite.H)
 
+	--restore the old palette values
     if pal_changed then
         for i = 1, #pal_changed do
             pal(pal_changed[i], pal_changed[i])
